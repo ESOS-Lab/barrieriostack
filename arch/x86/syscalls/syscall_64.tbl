@@ -324,6 +324,9 @@
 # 315	common	sched_getattr		sys_sched_getattr
 # 316	common	renameat2		sys_renameat2
 317	common	seccomp			sys_seccomp
+# UFS project add for fbarrier system call
+384	common	fbarrier		sys_fbarrier
+
 
 #
 # x32-specific system call numbers start at 512 to avoid cache impact

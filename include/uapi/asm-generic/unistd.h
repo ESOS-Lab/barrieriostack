@@ -259,7 +259,6 @@ __SC_COMP(__NR_sync_file_range2, sys_sync_file_range2, \
 __SC_COMP(__NR_sync_file_range, sys_sync_file_range, \
 	  compat_sys_sync_file_range)
 #endif
-
 /* fs/timerfd.c */
 #define __NR_timerfd_create 85
 __SYSCALL(__NR_timerfd_create, sys_timerfd_create)
@@ -705,6 +704,7 @@ __SYSCALL(__NR_seccomp, sys_seccomp)
 
 #undef __NR_syscalls
 #define __NR_syscalls 278
+
 
 /*
  * All syscalls below here should go away really,

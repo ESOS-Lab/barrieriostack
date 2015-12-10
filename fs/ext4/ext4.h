@@ -2012,6 +2012,8 @@ static inline  unsigned char get_dtype(struct super_block *sb, int filetype)
 /* fsync.c */
 extern int ext4_sync_file(struct file *, loff_t, loff_t, int);
 extern int ext4_flush_unwritten_io(struct inode *);
+// UFS project
+extern int ext4_fbarrier_file(struct file *, loff_t, loff_t, int);
 
 /* hash.c */
 extern int ext4fs_dirhash(const char *name, int len, struct

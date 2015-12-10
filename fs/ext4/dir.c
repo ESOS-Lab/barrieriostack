@@ -635,4 +635,6 @@ const struct file_operations ext4_dir_operations = {
 #endif
 	.fsync		= ext4_sync_file,
 	.release	= ext4_release_dir,
+// UFS project
+	.fbarrier	= ext4_fbarrier_file,
 };

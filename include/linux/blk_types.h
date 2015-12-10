@@ -182,6 +182,9 @@ enum rq_flag_bits {
 	__REQ_MIXED_MERGE,	/* merge of different types, fail separately */
 	__REQ_PM,		/* runtime pm request */
 	__REQ_NR_BITS,		/* stops here */
+
+	/* UFS project flag */
+	__REQ_BARRIER,		/* */
 };
 
 #define REQ_WRITE		(1 << __REQ_WRITE)
@@ -232,5 +235,7 @@ enum rq_flag_bits {
 #define REQ_SECURE		(1 << __REQ_SECURE)
 #define REQ_KERNEL		(1 << __REQ_KERNEL)
 #define REQ_PM			(1 << __REQ_PM)
+// UFS project 
+#define REQ_BARRIER		(1 << __REQ_BARRIER)
 
 #endif /* __LINUX_BLK_TYPES_H */
