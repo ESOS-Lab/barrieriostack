@@ -1,0 +1,47 @@
+menuconfig SWITCH
+	tristate "Switch class support"
+	help
+	  Say Y here to enable switch class support. This allows
+	  monitoring switches by userspace via sysfs and uevent.
+
+if SWITCH
+
+config SWITCH_GPIO
+	tristate "GPIO Swith support"
+	depends on GPIOLIB
+	help
+	  Say Y here to enable GPIO based switch support.
+
+config SWITCH_ANTENNA
+        tristate "ANTENNA Swith support"
+        depends on GPIOLIB
+        help
+          Say Y here to enable Antenna switch based switch support.
+
+config SWITCH_ANTENNA_IF
+        tristate "ANTENNA Swith control by IF detect"
+        depends on GPIOLIB
+        help
+          Say Y here to enable Antenna switch control by IF detect.
+
+config SWITCH_ANTENNA_EARJACK
+        tristate "ANTENNA Swith control by EARJACK detect"
+        depends on GPIOLIB
+        help
+          Say Y here to enable Antenna switch control by EARJACK detect.
+
+config SWITCH_ANTENNA_EARJACK_IF
+        tristate "ANTENNA Swith control by IF or EARJACK detect"
+        depends on GPIOLIB
+        help
+          Say Y here to enable Antenna switch control by IF or EARJACK detect.
+
+config SWITCH_ARIZONA
+	tristate "Wolfson Arizona Switch support"
+	depends on MFD_ARIZONA && INPUT && SND_SOC
+	help
+	  Say Y here to enable support for external accessory detection
+	  with Wolfson Arizona devices. These are audio CODECs with
+	  advanced audio accessory detection support.
+
+endif # SWITCH

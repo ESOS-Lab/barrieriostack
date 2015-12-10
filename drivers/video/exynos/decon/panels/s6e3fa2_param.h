@@ -1,0 +1,159 @@
+#ifndef __S6E3HF2_PARAM_H__
+#define __S6E3HF2_PARAM_H__
+
+#include <linux/types.h>
+#include <linux/kernel.h>
+
+struct lcd_seq_info {
+	unsigned char	*cmd;
+	unsigned int	len;
+	unsigned int	sleep;
+};
+
+static const unsigned char SEQ_TEST_KEY_ON_F0[] = {
+	0xF0,
+	0x5A, 0x5A
+};
+
+static const unsigned char SEQ_TEST_KEY_OFF_F0[] = {
+	0xF0,
+	0xA5, 0xA5
+};
+
+static const unsigned char SEQ_TEST_KEY_ON_FC[] = {
+	0xFC,
+	0x5A, 0x5A,
+};
+
+static const unsigned char SEQ_TEST_KEY_OFF_FC[] = {
+	0xFC,
+	0xA5, 0xA5,
+};
+
+static const unsigned char SEQ_SLEEP_OUT[] = {
+	0x11,
+	0x00, 0x00,
+};
+
+static const unsigned char SEQ_GAMMA_CONDITION_SET[] = {
+	0xCA,
+	0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x80, 0x80, 0x80, 0x80,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
+	0x00, 0x00, 0x00
+};
+
+static const unsigned char SEQ_AID_SET[] = {
+	0xB2,
+	0x00, 0x0E, 0x00, 0x0E,
+};
+
+static const unsigned char SEQ_AID_SET_RevF[] = {
+	0xB2,
+	0x00, 0x06, 0x00, 0x06,
+};
+
+
+static const unsigned char SEQ_ELVSS_SET[] = {
+	0xB6,
+	0x98, 0x04,
+};
+
+static const unsigned char SEQ_CAPS_ELVSS_SET[] = {
+	0xB6,
+	0x98, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x55, 0x54,
+	0x20, 0x00, 0x08, 0x88, 0x8F, 0x0F, 0x02, 0x11, 0x11, 0x10
+};
+
+static const unsigned char SEQ_GAMMA_UPDATE[] = {
+	0xF7,
+	0x03, 0x00,
+};
+
+static const unsigned char SEQ_ACL_SET[] = {
+	0x55,
+	0x02, 0x00,
+};
+
+static const unsigned char SEQ_ACL_OFF[] = {
+	0x55,
+	0x00, 0x00,
+};
+
+static const unsigned char SEQ_ACL_OFF_OPR_AVR[] = {
+	0xB5,
+	0x41, 0x00
+};
+
+static const unsigned char SEQ_ACL_ON_OPR_AVR[] = {
+	0xB5,
+	0x51, 0x00
+};
+
+static const unsigned char SEQ_TSET_GLOBAL[] = {
+	0xB0,
+	0x05, 0x00
+};
+
+static const unsigned char SEQ_TSET[] = {
+	0xB8,
+	0x19, 0x00
+};
+
+static const unsigned char SEQ_TE_OUT[] = {
+	0x35,
+	0x00, 0x00
+};
+
+static const unsigned char SEQ_GPARAM_TE[] = {
+	0xB0,
+	0x02
+};
+
+static const unsigned char SEQ_TE_ON_SET1[] = {
+	0xFD,
+	0x0A, 0x00
+};
+
+static const unsigned char SEQ_TE_ON_SET2[] = {
+	0xFE,
+	0x80, 0x00
+};
+
+static const unsigned char SEQ_TE_ON_SET3[] = {
+	0xFE,
+	0x00, 0x00
+};
+
+static const unsigned char SEQ_ERR_FG[] = {
+	0xED,
+	0x01, 0x00
+};
+
+static const unsigned char SEQ_DISPLAY_ON[] = {
+	0x29,
+	0x00, 0x00,
+};
+
+static const unsigned char SEQ_TOUCH_HSYNC_ON_RevG[] = {
+	0xBD,
+	0x05, 0x02, 0x02
+};
+
+static const unsigned char SEQ_TOUCH_HSYNC_ON[] = {
+	0xBD,
+	0x05, 0x02, 0x0C,
+};
+
+
+static const unsigned char SEQ_MIC_ENABLE[] = {
+	0xF9,
+	0x0B, 0x00,
+};
+
+static const unsigned char SEQ_PCD_SET_DET_LOW[] = {
+	0xCC,
+	0x5C, 0x51,
+};
+
+#endif /* __S6E3HF2_PARAM_H__ */

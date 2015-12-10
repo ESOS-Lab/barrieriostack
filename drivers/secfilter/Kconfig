@@ -1,0 +1,3 @@
+config SEC_NET_FILTER
+       tristate "Samsung Nefilter Driver Module"
+       default n

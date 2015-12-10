@@ -1,0 +1,18 @@
+config SAMSUNG_MHL_8240
+        bool "Enable Sii8240 MHL Chip Driver"
+        select SEC_MHL_SUPPORT
+        select SEC_MHL_HDCP
+        select SEC_MHL_EDID
+        default n
+        ---help---
+          support Sii9244 MHL Chip Driver
+
+config MHL_VERSION
+        hex "Number of MHL Version"
+        depends on SAMSUNG_MHL_8240
+        default 0x20
+        ---help---
+          MHL Version
+		  For example, those device compliant
+		  with MHL Specification version 2.0
+		  shell set this MHL_VERSION to 0x20

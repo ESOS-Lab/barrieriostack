@@ -1,0 +1,32 @@
+config VIDEO_EXYNOS_FIMC_IS
+	bool "Exynos FIMC-IS (Image Subsystem) driver"
+	depends on VIDEO_EXYNOS
+	select MEDIA_EXYNOS
+	select USE_VENDER_FEATURE if SEC_DEBUG
+	default n
+	help
+	  This is a v4l2 driver for exynos FIMC-IS device.
+config COMPANION_USE
+        bool "Enable to companion"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable to companion.
+config CAMERA_SENSOR_8B1
+        bool "Use 8B1 camera sensor"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use 8B1 camera sensor.
+config CAMERA_SENSOR_6D1
+        bool "Use 6D1 camera sensor"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use 6D1 camera sensor.
+config USE_VENDER_FEATURE
+	bool "Use vendor specific features"
+        depends on VIDEO_EXYNOS_FIMC_IS
+	default n
+	help
+	  Enable to use the vender.

@@ -1,0 +1,89 @@
+#
+#
+#
+menuconfig VIBETONZ
+	tristate "Vibetonz"
+	help
+	  Say Y to enable Vibetonz support.
+
+config MOTOR_DRV_MAX77804
+	tristate "Maxim MAX77804 motor"
+	default n
+	depends on (MFD_MAX77804 || MFD_MAX77804K)
+	help
+	  If you say yes here you will get support for the
+	  motor of Maxim MAX77804 PMIC.
+
+config MOTOR_DRV_MAX77828
+	tristate "Maxim MAX77828 motor"
+	default n
+	depends on MFD_MAX77828
+	help
+	  If you say yes here you will get support for the
+	  motor of Maxim MAX77828 PMIC.
+
+config MOTOR_DRV_MAX77833
+    tristate "Maxim MAX77833 motor"
+    default n
+    depends on MFD_MAX77833
+    help
+      If you say yes here you will get support for the 
+      motor of Maxim MAX77833 PMIC.
+
+config MOTOR_DRV_MAX77843
+	tristate "Maxim MAX77843 motor"
+	default n
+	depends on MFD_MAX77843
+	help
+	  If you say yes here you will get support for the
+	  motor of Maxim MAX77843 PMIC.
+
+config MOTOR_DRV_MAX77888
+	tristate "Maxim MAX77888 motor"
+	default n
+	depends on MFD_MAX77888
+	help
+	  If you say yes here you will get support for the
+	  motor of Maxim MAX77888 PMIC.
+
+config MOTOR_DRV_MAX8997
+	tristate "Maxim MAX8997 motor"
+	default n
+	depends on MFD_MAX8997
+	help
+	  If you say yes here you will get support for the
+	  motor of Maxim MAX8997 PMIC.
+
+config MOTOR_DRV_ISA1200
+	tristate "ISA1200 motor"
+	default n
+	depends on I2C
+	help
+	  Say Y to enalbe the ISA1200 IC.
+
+config MOTOR_DRV_ISA1400
+	tristate "ISA1400 motor"
+	default n
+	depends on I2C
+	help
+	  Say Y to enalbe the ISA1400 IC.
+
+config HAPTIC_ISA1200
+	tristate "ISA1200 motor"
+	default n
+	depends on I2C
+	help
+	  Say Y to enalbe the ISA1200 IC.
+
+config HAPTIC_ISA1400
+	tristate "ISA1400 motor"
+	default n
+	depends on I2C
+	help
+	  Say Y to enalbe the ISA1400 IC.
+
+config HAPTIC
+	tristate "Immersion TouchSense"
+	default n
+	help
+	  Say Y to enable Immersion TouchSense.

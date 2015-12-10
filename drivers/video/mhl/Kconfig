@@ -1,0 +1,22 @@
+#
+# mhl drivers configuration
+#
+
+menu "Mhl device support"
+
+config SEC_MHL_SUPPORT
+        bool "Enable MHL support"
+        default n
+
+config SEC_MHL_HDCP
+        bool "Enable MHL HDCP"
+        default n
+
+config SEC_MHL_EDID
+        bool "Enable MHL edid read"
+        default n
+
+source "drivers/video/mhl/sii8240/Kconfig"
+source "drivers/video/mhl/sii8620/Kconfig"
+
+endmenu
