@@ -791,5 +791,6 @@ __SYSCALL(382, sys_ni_syscall)
 __SYSCALL(__NR_seccomp, sys_seccomp)
 // UFS project add for fbarrier system call
 #define __NR_fbarrier 384
-__SYSCALL(__NR_fabrrier, sys_fbarrier)
-
+__SYSCALL(__NR_fbarrier, sys_fbarrier)
+#define __NR_fdatabarrer 385
+__SYSCALL(__NR_fdatabarrier, sys_fdatabarrier)

@@ -259,7 +259,11 @@ SYSCALL_DEFINE1(fbarrier, unsigned int, fd)
 	printk("in SYSCALL_DEFINE1(fbarrier)\n");
 	return do_fbarrier(fd, 0);
 }
-
+SYSCALL_DEFINE1(fdatabarrier, unsigned int, fd)
+{
+	printk("in SYSCALL_DEFINE1(fdatabarrier)\n");
+	return do_fbarrier(fd, 1);
+}
 /**
  * generic_write_sync - perform syncing after a write if file / inode is sync
  * @file:	file to which the write happened

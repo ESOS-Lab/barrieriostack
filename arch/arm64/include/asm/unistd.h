@@ -43,7 +43,8 @@
 #define __ARM_NR_compat_cacheflush	(__ARM_NR_COMPAT_BASE+2)
 #define __ARM_NR_compat_set_tls		(__ARM_NR_COMPAT_BASE+5)
 
-#define __NR_compat_syscalls		385
+// UFS project add for system call
+#define __NR_compat_syscalls		386
 #endif
 
 #define __ARCH_WANT_SYS_CLONE
