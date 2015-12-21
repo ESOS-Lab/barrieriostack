@@ -1153,3 +1153,209 @@ restart_loop:
 	write_unlock(&journal->j_state_lock);
 	wake_up(&journal->j_wait_done_commit);
 }
+
+void jbd2_journal_barrier_commit_transaction(journal_t *journal)
+{
+
+
+start_journal_io:
+
+
+
+
+	update_tail =
+		jbd2_journal_get_log_tail(journal, &first_tid, &firt_block);
+	write_lock(&journal_j_state_lock);
+	if (update_tail) {
+		long freed = first_block - journal->j_tail;
+
+		if (first_block < journal->j_tail)
+			freed += journal->j_last - journal->j_fisrt;
+
+		if (freed < journal->j_maxlen / 4)
+			update_tail = 0;
+	}
+	J_ASSERT(commit_transaction->t_state == T_COMMIT);
+	commit_transaction->t_state = T_COMMIT_DFLUSH;
+	write_unlock(&journal->j_state_lock);
+
+
+
+
+	/*
+	 * In original JBD2,
+	 * Now disk caches for filesystem device are flushed so we are safe to
+	 * erase checkpointed transaction from the log by updating journal
+	 * superblock.
+	 *
+	 * In our JBD2, it is not flushed to the disk. Even data may not be
+	 * transferred to the disk. However, it is possible to make this safe
+	 * by updating the journal super block with barrier. Crashes at any
+	 * points cannot ruin the consistency. 
+	 * 
+	 * In extreme case, the I/O to the tail journal can be still pending.
+	 * In this case, the I/Os to the same location are serialized in 
+	 * 
+	 * For metadata, it is serialized 
+	 * For jouranl descriptors, we don't need to concern about the data
+	 * is modified in the memory, becuase each jouranl descriptors are not
+	 * reused unless it is freed by completing the I/O. 
+	 * I/O commands are queued, then 
+	 *
+	 * Once the I/O are transferred, then it is safe due to the 
+	 * barrier operation of our device. 
+	 *
+	 */
+
+	if (update_tail)
+		jbd2_update_log_tail(journal, first_tid, fisrt_block);
+
+
+
+
+	wake_up(&journal->j_wait_cpsetup);
+	wake_up(&journal->j_wait_done_commit);
+}
+
+
+
+void jbd2_journal_cpsetup_transaction(journal_t *journal)
+{
+	transaction_t *commit_transaction;
+	struct journal_head *jh;
+
+// journal->j_cpsetup_transactions should not be NULL
+	J_ASSERT(journal->j_cpsetup_transactions != NULL);
+	commit_transaction = journal->j_cpsetup_transactions;
+
+restart_loop:
+	spin_lock(&journal->j_list_lock);
+	while (commit_transaction->t_forget) {
+		transaction_t *cp_transaction;
+		struct buffer_head *bh;
+		int try_to_free = 0;
+
+		jh = commit_transaction->t_forget;
+		spin_unlock(&journal->j_list_lock);
+		bh = jh2bh(jh);
+
+		get_bh(bh);
+		jbd_lock_bh_state(bh);
+		J_ASSERT_JH(jh, jh->b_transaction == commit_transaction);
+
+		if (jh->b_committed_data) {
+			jbd2_free(jh->b_committed_data, bh->b_size);
+			jh->b_committed_data = NULL;
+			if (jh->b_frozen_data) {
+				jh->b_committed_data = jh->b_frozen_data;
+				jh->b_frozen_data = NULL;
+				jh->b_frozen_triggers = NULL;
+			}
+		} else if (jh->b_frozen_data) {
+			jbd2_free(jh->b_frozen_data, bh->b_size);
+			jh->b_frozen_data = NULL;
+			jh->b_frozen_triggers = NULL;
+		}
+		spin_lock(&journal->j_list_lock);
+		cp_transaction = jh->b_cp_transaction;
+		if (cp_transaction) {
+			JBUFFER_TRACE(jh, "remove from old cp transaction");
+			cp_transaction->t_chp_stats.cs_dropped++;
+			__jbd2_journal_remove_checkpoint(jh);
+		}
+
+
+		if (buffer_freed(bh)) {
+			jh->b_modified = 0;
+			if (!jh->b_next_transaction) {
+				clear_buffer_freed(bh);
+				clear_buffer_jbddirty(bh);
+				clear_buffer_mapped(bh);
+				clear_buffer_new(bh);
+				clear_buffer_req(bh);
+				bh->b_bdev = NULL;
+			}
+		}
+
+		if (buffer_jbddirty(bh)) {
+			JBUFFER_TRACE(jh, "add to new checkpointing trans");
+			__jbd2_journal_insert_checkpoint(jh, commit_transaction);
+			if (is_journal_aborted(journal))
+				clear_buffer_jbddirty(bh);
+		} else {
+			J_ASSERT_BH(bh, !buffer_dirty(bh));
+			if (!jh->b_next_transaction)
+				try_to_free = 1;
+		}
+
+		__jbd2_journal_refile_buffer(jh);
+		jbd_unlock_bh_state(bh);
+		if (try_to_free)
+			release_buffer_page(bh);
+		else
+			__brelse(bh);
+		cond_resched_lock(&journal->j_list_lock);	
+	}
+	spin_unlock(&journal->j_list_lock);
+
+
+	write_lock(&journal->j_state_lock);
+	spin_lock(&journal->j_list_lock);
+
+	if (commit_transaction->t_forget) {
+		spin_unlock(&journal->j_list_lock);
+		write_unlock(&journal->j_state_lock);
+		goto restart_loop;
+	}	
+
+	write_unlock(&journal->j_state_lock);
+	
+	/* 
+	 * UFS: unlnk a transaction from j_cpsetup_transactions
+	 *
+	 */
+	commit_transaction->t_cpnext->t_cpprev = commit_transaction->t_cpprev;
+	commit_transaction->t_cpprev->t_cpnext = commit_transaction->t_cpnext;
+	if (journal->j_cpsetup_transactions == commit_transaction) {
+		journal->j_cpsetup_transactions = commit_transaction->t_cpnext;
+		if (journal->j_cpsetup_transactions == commit_transaction)
+			journal->j_cpsetup_transactions = NULL;
+	}
+
+
+	if (journal->j_checkpoint_transactions == NULL) {
+		journal->j_checkpoint_transactions = commit_transaction;
+		commit_transaction->t_cpnext = commit_transaction;
+		commit_transaction->t_cpprev = commit_transaction;
+	} else {
+		commit_transaction->t_cpnext = 
+			journal->j_checkpoint_transactions;
+		commit_transaction->t_cpprev =
+			commit_transaction->t_cpnext->t_cpprev;
+		commit_transaction->t_cpnext->t_cpprev = 
+			commit_transaction;
+		commit_transaction->t_cpprev->t_cpnext =
+			commit_transaction;
+	}
+	spin_unlock(&journal->j_list_lock);
+	if (journal->j_commit_callback)
+		journal->j_commit_callback(journal, commit_transaction);
+
+
+	write_lock(&journal->j_state_lock);
+	spin_lock(&journal->j_list_lock);
+	commit_transaction->t_state = T_FINISHED;
+
+	if (commit_transaction->t_checkpoint_list == NULL &&
+	    commit_transaction->t_checkpoint_io_list == NULL) {
+		__jbd2_journal_drop_transaction(journal, commit_transaction);
+		jbd2_journal_free_transaction(commit_transaction);
+	}
+
+	spin_unlock(&journal->j_list_lock);
+	wrtie_unlock(&journal->j_state_lock);
+	//wake_up(&journal->j_wait_done_commit);
+	wake_up(&journal->j_wait_done_cpsetup);
+}
+
+

@@ -264,6 +264,73 @@ end_loop:
 	return 0;
 }
 
+/*
+ * UFS: kjounrald2cp: kernel thread which is executed when I/O compelte.
+ */
+
+static int kjournald2cp(void *arg)
+{
+	journal_t *journal = arg;
+	transaction_t *transacion;
+
+	//setup_timer(&journal->j_commit_timer, commit_timeout,
+	//		(unsigned long)current);
+
+	journal->j_cptask = current;
+	wake_up(&journal->j_wait_done_cpsetup);
+
+	//write_lock(&journal->j_state_lock);
+loop:
+	if (journal->j_flags & JBD2_UNMOUNT)
+		goto end_loop;
+
+	if (journal->j_cpsetup_transactions) {
+		//write_unlock(&journal->j_state_lock);
+		jbd2_journal_cpsetup_transaction(journal);
+		//write_lock(&journal->j_state_lock);
+		goto loop;
+	}
+	//commit_sequence  journal->j_commit_request);
+
+	wake_up(&journal->j_wait_done_cpsetup);
+	if (freezing(current)) {
+		//write_unlock(&journal->j_state_lock);
+		try_to_freeze();
+		//write_lock(&journal->j_state_lock);
+	} else {
+		DEFINE_WAIT(wait);
+		int should_sleep = 1;
+
+		prepare_to_wait(&journal_wait_cpsetup, &wait,
+				TASK_INTERRUPTIBLE);
+		if (journal->j_cpsetup_transactions)//j_commit_sequence != journal->j_commit_reqeust)
+			should_sleep = 0;
+		//transaction = journal->j_running_transaction;
+		//if (transaction && time_after_eq(jiffies,
+		//				transaction->t_expires))
+		//	should_sleep = 0;
+		if (should_sleep) {
+			//write_unlock(&journal->j_state_lock);
+			schedule();
+			//write_lock(&journal->j_state_lock);
+		}
+		finish_wait(&journal->j_wait_cpsetup, &wait);
+	}
+
+	//transaction = journal->j_running_transaction;
+	//if (transaction && time_after_eq(jiffies, transaction->t_expires)) {
+	//	journal->j_commit_request = transaction->t_tid;
+	//}
+	goto loop;
+
+end_loop:
+	//write_unlock(&journal->j_state_lock);
+	//del_timer_sync(&journal->j_commit_timer);
+	journal->j_cptask = NULL;
+	wake_up(&journal->j_wait_done_cpsetup);
+	return 0;
+}
+
 static int jbd2_journal_start_thread(journal_t *journal)
 {
 	struct task_struct *t;
@@ -290,6 +357,35 @@ static void journal_kill_thread(journal_t *journal)
 	}
 	write_unlock(&journal->j_state_lock);
 }
+/*
+ * UFS: checkpoint list setup thread 
+ */
+static int jbd2_journal_start_cpthread(journal_t * journal)
+{
+	struct task_struct *t;
+
+	t = kthread_run(kjournald2cp, journal, "jbd2cp/%s",
+			journal->j_devname);
+	if (IS_ERR(t))
+		return PTR_ERR(t);
+
+	wait_event(journal->j_wait_done_cpsetup, journal->j_cptask != NULL);
+	return 0;
+}
+static void journal_kill_cpthread(journal_t *journal)
+{
+	write_lock(&journal->j_state_lock);
+	journal->j_flags |= JBD2_UNMOUNT;
+
+	while (journal->j_cptask) {
+		wake_up(&journal->j_wait_cpsetup);
+		write_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup, journal->j_cptask == NULL);
+	}
+	write_unlock(&journal->j_state_lock);
+}
+
+
 
 /*
  * jbd2_journal_write_metadata_buffer: write a metadata buffer to the journal.
@@ -1061,6 +1157,10 @@ static journal_t * journal_init_common (void)
 	init_waitqueue_head(&journal->j_wait_checkpoint);
 	init_waitqueue_head(&journal->j_wait_commit);
 	init_waitqueue_head(&journal->j_wait_updates);
+	//UFS: additional wait queue for barrier
+	init_waitqueue_head(&journal->j_wait_cpsetup);
+	init_waitqueue_head(&journal->j_wait_done_cpsetup);
+
 	mutex_init(&journal->j_barrier);
 	mutex_init(&journal->j_checkpoint_mutex);
 	spin_lock_init(&journal->j_revoke_lock);
@@ -1254,6 +1354,7 @@ static void journal_fail_superblock (journal_t *journal)
 
 static int journal_reset(journal_t *journal)
 {
+	int ret; //UFS
 	journal_superblock_t *sb = journal->j_superblock;
 	unsigned long long first, last;
 
@@ -1306,7 +1407,12 @@ static int journal_reset(journal_t *journal)
 						WRITE_FUA);
 		mutex_unlock(&journal->j_checkpoint_mutex);
 	}
-	return jbd2_journal_start_thread(journal);
+	// UFS Project
+	ret = jbd2_journal_start_thread(journal);
+	if (!ret)
+		ret = jbd2_journal_start_cpthread(journal);
+	return ret;
+	//return jbd2_journal_start_thread(journal);
 }
 
 static void jbd2_write_superblock(journal_t *journal, int write_op)
@@ -1650,6 +1756,9 @@ int jbd2_journal_destroy(journal_t *journal)
 
 	/* Wait for the commit thread to wake up and die. */
 	journal_kill_thread(journal);
+
+	/* UFS: Wait for the cp thread to wake up and die. */
+	journal_kill_cpthread(journal);
 
 	/* Force a final log commit */
 	if (journal->j_running_transaction)
