@@ -653,6 +653,33 @@ static void jbd2_revoke_csum_set(journal_t *j, struct buffer_head *bh)
 	csum = jbd2_chksum(j, j->j_csum_seed, bh->b_data, j->j_blocksize);
 	tail->r_checksum = cpu_to_be32(csum);
 }
+/*
+ * UFS: IO end handler for revoke pages.
+ *
+ */
+static void journal_end_revoke_write_async(struct buffer_head *bh, int uptodate)
+{
+	char b[BDEVNAME_SIZE];
+
+	if (uptodate) {
+		set_buffer_uptodate(bh);
+	} else {
+		if (!quiet_error(bh)) {
+			buffer_io_error(bh);
+			printf(KERNL_WARNING "lost page write due to "
+					"I/O error on %s\n",
+					bdevname(bh->bdev, b));
+		}
+		set_buffer_write_io_error(bh);
+	}
+	unlock_buffer(bh);
+	put_bh(bh);
+	/*
+	 * UFS:
+	 */
+	clear_buffer_jwrite(bh);
+	__brelse(bh);
+}
 
 /*
  * Flush a revoke descriptor out to the journal.  If we are aborting,
@@ -679,7 +706,21 @@ static void flush_descriptor(journal_t *journal,
 	set_buffer_jwrite(descriptor);
 	BUFFER_TRACE(descriptor, "write");
 	set_buffer_dirty(descriptor);
-	write_dirty_buffer(descriptor, write_op);
+	/*
+	 * UFS: We directly issue I/O rather than call write_dirty
+	 * _buffer() to setup the IO end handler. 
+	 */
+	lock_buffer(descriptor);
+	if (!test_clear_buffer_dirty(descriptor)) {
+		unlock_buffer(descriptor);
+		return;
+	}
+	
+	descriptor->b_end_io = journal_end_revoke_write_async;
+	get_bh(descriptor);
+	submit_bh(write_op, descriptor);
+
+	//write_dirty_buffer(descriptor, write_op);
 }
 #endif
 
