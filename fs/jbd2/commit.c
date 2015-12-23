@@ -1904,10 +1904,6 @@ start_journal_io:
 	spin_unlock(&journal->j_history_lock);
 
 
-	/* 
-	 * T_COMMIT_CALLBACK state needs to be delayed?
-	 */
-	commit_transaction->t_state = T_COMMIT_CALLBACK;
 	
 	J_ASSERT(commit_transaction == journal->j_committing_transaction);
 	journal->j_commit_sequence = commit_transaction->t_tid;
@@ -1930,11 +1926,6 @@ start_journal_io:
 	 * removed. It will be performed in cpthread. 
 	 */
 	spin_unlock(&journal->j_list_lock);
-	/* Drop all spin_locks because commit_callback may be block.
-	 * __journal_remove_checkpoint() can not destroy transaction
-	 * under us because it is not marked as T_FINISHED yet */
-	if (journal->j_commit_callback)
-		journal->j_commit_callback(journal, commit_transaction);
 
 	trace_jbd2_end_commit(journal, commit_transaction);
 	jbd_debug(1, "JBD2: commit %d complete, head %d\n",
@@ -2134,20 +2125,7 @@ restart_loop:
 
 
 	commit_transaction->t_state = T_COMMIT_CALLBACK;
-	J_ASSERT(commit_transaction == journal->j_committing_transaction);
-	journal->j_commit_sequence = commit_transaction->t_tid;
-	journal->j_committing_transaction = NULL;
-	commit_time = ktime_to_ns(ktime_sub(ktime_get(), start_time));
 
-	/*
-	 * weight the commit time higher than the average time so we don't
-	 * react too strongly to vast changes in the commit time
-	 */
-	if (likely(journal->j_average_commit_time))
-		journal->j_average_commit_time = (commit_time +
-				journal->j_average_commit_time*3) / 4;
-	else
-		journal->j_average_commit_time = commit_time;
 
 	write_unlock(&journal->j_state_lock);
 	/* 
