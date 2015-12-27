@@ -511,6 +511,7 @@ void elv_merge_requests(struct request_queue *q, struct request *rq,
 			     struct request *next)
 {
 	struct elevator_queue *e = q->elevator;
+	// UFS_DEBUGER
 	const int next_sorted = next->cmd_flags & REQ_SORTED;
 
 	if (next_sorted && e->type->ops.elevator_merge_req_fn)

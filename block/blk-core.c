@@ -173,7 +173,7 @@ static void req_bio_endio(struct request *rq, struct bio *bio,
 void blk_dump_rq_flags(struct request *rq, char *msg)
 {
 	int bit;
-
+	// UFS project modify
 	printk(KERN_INFO "%s: dev %s: type=%x, flags=%x\n", msg,
 		rq->rq_disk ? rq->rq_disk->disk_name : "?", rq->cmd_type,
 		rq->cmd_flags);
@@ -901,7 +901,8 @@ static struct io_context *rq_ioc(struct bio *bio)
  * Returns %NULL on failure, with @q->queue_lock held.
  * Returns !%NULL on success, with @q->queue_lock *not held*.
  */
-static struct request *__get_request(struct request_list *rl, int rw_flags,
+// UFS modify
+static struct request *__get_request(struct request_list *rl, unsigned long long rw_flags,
 				     struct bio *bio, gfp_t gfp_mask)
 {
 	struct request_queue *q = rl->q;
@@ -1118,8 +1119,8 @@ retry:
 
 	goto retry;
 }
-
-struct request *blk_get_request(struct request_queue *q, int rw, gfp_t gfp_mask)
+// UFS project modify
+struct request *blk_get_request(struct request_queue *q, unsigned long long rw, gfp_t gfp_mask)
 {
 	struct request *rq;
 
@@ -1356,7 +1357,8 @@ EXPORT_SYMBOL_GPL(blk_add_request_payload);
 static bool bio_attempt_back_merge(struct request_queue *q, struct request *req,
 				   struct bio *bio)
 {
-	const int ff = bio->bi_rw & REQ_FAILFAST_MASK;
+	// UFS project modify
+	const long long ff = bio->bi_rw & REQ_FAILFAST_MASK;
 
 	if (!ll_back_merge_fn(q, req, bio))
 		return false;
@@ -1378,7 +1380,8 @@ static bool bio_attempt_back_merge(struct request_queue *q, struct request *req,
 static bool bio_attempt_front_merge(struct request_queue *q,
 				    struct request *req, struct bio *bio)
 {
-	const int ff = bio->bi_rw & REQ_FAILFAST_MASK;
+	// UFS project modify
+	const long long ff = bio->bi_rw & REQ_FAILFAST_MASK;
 
 	if (!ll_front_merge_fn(q, req, bio))
 		return false;
@@ -1461,11 +1464,14 @@ out:
 void init_request_from_bio(struct request *req, struct bio *bio)
 {
 	req->cmd_type = REQ_TYPE_FS;
-
 	req->cmd_flags |= bio->bi_rw & REQ_COMMON_MASK;
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
-
+	// UFS project add
+	if(bio->bi_rw & REQ_BARRIER) 
+		req->cmd_bflags = (REQ_BARRIER >> 32);
+	if(bio->bi_rw & REQ_ORDERED) 
+		req->cmd_bflags = (REQ_ORDERED >> 32);
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
 	req->ioprio = bio_prio(bio);
@@ -1476,7 +1482,9 @@ void blk_queue_bio(struct request_queue *q, struct bio *bio)
 {
 	const bool sync = !!(bio->bi_rw & REQ_SYNC);
 	struct blk_plug *plug;
-	int el_ret, rw_flags, where = ELEVATOR_INSERT_SORT;
+	// UFS project modify
+	int el_ret, where = ELEVATOR_INSERT_SORT;
+	unsigned long long rw_flags = (unsigned long long)ELEVATOR_INSERT_SORT;
 	struct request *req;
 	unsigned int request_count = 0;
 
@@ -1607,7 +1615,8 @@ static void handle_bad_sector(struct bio *bio)
 	char b[BDEVNAME_SIZE];
 
 	printk(KERN_INFO "attempt to access beyond end of device\n");
-	printk(KERN_INFO "%s: rw=%ld, want=%Lu, limit=%Lu\n",
+	// UFS project modify
+	printk(KERN_INFO "%s: rw=%Lu, want=%Lu, limit=%Lu\n",
 			bdevname(bio->bi_bdev, b),
 			bio->bi_rw,
 			(unsigned long long)bio_end_sector(bio),
@@ -1856,7 +1865,8 @@ EXPORT_SYMBOL(generic_make_request);
  * interfaces; @bio must be presetup and ready for I/O.
  *
  */
-void submit_bio(int rw, struct bio *bio)
+// UFS project modify
+void submit_bio(unsigned long long rw, struct bio *bio)
 {
 	bio->bi_rw |= rw;
 
@@ -2689,6 +2699,8 @@ void blk_rq_bio_prep(struct request_queue *q, struct request *rq,
 {
 	/* Bit 0 (R/W) is identical in rq->cmd_flags and bio->bi_rw */
 	rq->cmd_flags |= bio->bi_rw & REQ_WRITE;
+	// UFS project modify
+//	printk("rq->cmd_flags:%x, bio->bi_rw:%llu\t in blk_rq_bio_prep FN\n", rq->cmd_flags, bio->bi_rw);
 
 	if (bio_has_data(bio)) {
 		rq->nr_phys_segments = bio_phys_segments(q, bio);
