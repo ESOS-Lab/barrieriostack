@@ -1,3 +1,4 @@
+#define HANKEUN_DEBUG 1
 /*
  *  linux/fs/ext4/fsync.c
  *
@@ -195,8 +196,7 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 
 	trace_ext4_sync_file_enter(file, datasync);
 
-	printk("in ext4_fbarrier_file FN\n");
-
+	// UFS project modify filemap_write_and_wait_range 
 	ret = filemap_write_and_barrier_range(inode->i_mapping, start, end);
 	if (ret)
 		return ret;
@@ -268,8 +268,7 @@ int ext4_ordered_file(struct file *file, loff_t start, loff_t end, int datasync)
 
 	trace_ext4_sync_file_enter(file, datasync);
 
-	printk("in ext4_fbarrier_file FN\n");
-
+	// UFS project modify filemap_write_and_wait_range 
 	ret = filemap_write_and_ordered_range(inode->i_mapping, start, end);
 	if (ret)
 		return ret;

@@ -574,7 +574,6 @@ static inline void queue_flag_clear(unsigned int flag, struct request_queue *q)
 
 #define list_entry_rq(ptr)	list_entry((ptr), struct request, queuelist)
 
-// UFS project modify
 #define rq_data_dir(rq)		((rq)->cmd_flags & 1)
 
 static inline unsigned int blk_queue_cluster(struct request_queue *q)
@@ -628,7 +627,6 @@ static inline bool rq_mergeable(struct request *rq)
 	return true;
 }
 
-// UFS project modify
 static inline bool blk_check_merge_flags(unsigned long flags1,
 					 unsigned long flags2)
 {
@@ -849,7 +847,6 @@ static inline unsigned int blk_rq_cur_sectors(const struct request *rq)
 	return blk_rq_cur_bytes(rq) >> 9;
 }
 
-// UFS project modify
 static inline unsigned int blk_queue_get_max_sectors(struct request_queue *q,
 						     unsigned int cmd_flags)
 {

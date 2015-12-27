@@ -1007,7 +1007,6 @@ static int sd_prep_fn(struct request_queue *q, struct request *rq)
 		SCpnt->cmnd[0] = READ_6;
 		SCpnt->sc_data_direction = DMA_FROM_DEVICE;
 	} else {
-		// UFS project modify
 		scmd_printk(KERN_ERR, SCpnt, "Unknown command %x\n", rq->cmd_flags);
 		goto out;
 	}

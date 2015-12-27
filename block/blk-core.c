@@ -173,7 +173,6 @@ static void req_bio_endio(struct request *rq, struct bio *bio,
 void blk_dump_rq_flags(struct request *rq, char *msg)
 {
 	int bit;
-	// UFS project modify
 	printk(KERN_INFO "%s: dev %s: type=%x, flags=%x\n", msg,
 		rq->rq_disk ? rq->rq_disk->disk_name : "?", rq->cmd_type,
 		rq->cmd_flags);
@@ -1464,9 +1463,11 @@ out:
 void init_request_from_bio(struct request *req, struct bio *bio)
 {
 	req->cmd_type = REQ_TYPE_FS;
+
 	req->cmd_flags |= bio->bi_rw & REQ_COMMON_MASK;
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
+
 	// UFS project add
 	if(bio->bi_rw & REQ_BARRIER) 
 		req->cmd_bflags = (REQ_BARRIER >> 32);
@@ -1615,7 +1616,6 @@ static void handle_bad_sector(struct bio *bio)
 	char b[BDEVNAME_SIZE];
 
 	printk(KERN_INFO "attempt to access beyond end of device\n");
-	// UFS project modify
 	printk(KERN_INFO "%s: rw=%Lu, want=%Lu, limit=%Lu\n",
 			bdevname(bio->bi_bdev, b),
 			bio->bi_rw,
@@ -2699,8 +2699,6 @@ void blk_rq_bio_prep(struct request_queue *q, struct request *rq,
 {
 	/* Bit 0 (R/W) is identical in rq->cmd_flags and bio->bi_rw */
 	rq->cmd_flags |= bio->bi_rw & REQ_WRITE;
-	// UFS project modify
-//	printk("rq->cmd_flags:%x, bio->bi_rw:%llu\t in blk_rq_bio_prep FN\n", rq->cmd_flags, bio->bi_rw);
 
 	if (bio_has_data(bio)) {
 		rq->nr_phys_segments = bio_phys_segments(q, bio);
