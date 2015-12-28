@@ -1473,6 +1473,9 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 		req->cmd_bflags = (REQ_BARRIER >> 32);
 	if(bio->bi_rw & REQ_ORDERED) 
 		req->cmd_bflags = (REQ_ORDERED >> 32);
+	#ifdef CONFIG_HANKEUN_DEBUG
+	printk("req->cmd_flags:%d, req->cmd_bflags:%d, bio->bi_rw:%llu\t in init_request_from_bio FN\n",req->cmd_flags, req->cmd_bflags ,bio->bi_rw);
+	#endif
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
 	req->ioprio = bio_prio(bio);

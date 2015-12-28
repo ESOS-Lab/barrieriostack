@@ -437,4 +437,11 @@ config OLD_SIGACTION
 config COMPAT_OLD_SIGACTION
 	bool
 
+#Test HANKEUN_DEBUG
+
+config HANKEUN_DEBUG
+	bool "HANKEUN debug print"
+	default y
+
+
 source "kernel/gcov/Kconfig"

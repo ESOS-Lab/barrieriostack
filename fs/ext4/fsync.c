@@ -1,4 +1,3 @@
-#define HANKEUN_DEBUG 1
 /*
  *  linux/fs/ext4/fsync.c
  *
