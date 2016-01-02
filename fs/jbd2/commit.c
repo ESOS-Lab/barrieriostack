@@ -261,9 +261,11 @@ static int journal_submit_commit_record(journal_t *journal,
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !JBD2_HAS_INCOMPAT_FEATURE(journal,
 				       JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT))
-		ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
+		ret = submit_bh(WRITE_SYNC | WRITE_BARRIER, bh);
+		//ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
 	else
-		ret = submit_bh(WRITE_SYNC, bh);
+		ret = submit_bh(WRITE_BARRIER, bh);
+		//ret = submit_bh(WRITE_SYNC, bh);
 
 	*cbh = bh;
 	return ret;
@@ -285,6 +287,19 @@ static int journal_wait_on_commit_record(journal_t *journal,
 		ret = -EIO;
 	put_bh(bh);            /* One for getblk() */
 
+	return ret;
+}
+/*
+ * UFS
+ */
+static int journal_dispatch_on_commit_record(journal_t *journal,
+					struct buffer_head *bh)
+{
+	int ret = 0;
+
+	wait_on_buffer_dispatch(bh);
+	
+	//put_bh(bh);
 	return ret;
 }
 
@@ -400,6 +415,57 @@ static int journal_finish_inode_data_buffers(journal_t *journal,
 
 	return ret;
 }
+/*
+ * UFS
+ */
+static int journal_dispatch_inode_data_buffers(journal_t *journal,
+		transaction_t *commit_transaction)
+{
+	struct jbd2_inode *jinode, *next_i;
+	int err, ret = 0;
+
+	/* For locking, see the comment in journal_submit_data_buffers() */
+	spin_lock(&journal->j_list_lock);
+	list_for_each_entry(jinode, &commit_transaction->t_inode_list, i_list) {
+		set_bit(__JI_COMMIT_RUNNING, &jinode->i_flags);
+		spin_unlock(&journal->j_list_lock);
+		err = filemap_fdatadispatch(jinode->i_vfs_inode->i_mapping);
+		if (err) {
+			/*
+			 * Because AS_EIO is cleared by
+			 * filemap_fdatawait_range(), set it again so
+			 * that user process can get -EIO from fsync().
+			 */
+			set_bit(AS_EIO,
+				&jinode->i_vfs_inode->i_mapping->flags);
+
+			if (!ret)
+				ret = err;
+		}
+		spin_lock(&journal->j_list_lock);
+		clear_bit(__JI_COMMIT_RUNNING, &jinode->i_flags);
+		smp_mb__after_clear_bit();
+		wake_up_bit(&jinode->i_flags, __JI_COMMIT_RUNNING);
+	}
+
+	/* Now refile inode to proper lists */
+	list_for_each_entry_safe(jinode, next_i,
+				 &commit_transaction->t_inode_list, i_list) {
+		list_del(&jinode->i_list);
+		if (jinode->i_next_transaction) {
+			jinode->i_transaction = jinode->i_next_transaction;
+			jinode->i_next_transaction = NULL;
+			list_add(&jinode->i_list,
+				&jinode->i_transaction->t_inode_list);
+		} else {
+			jinode->i_transaction = NULL;
+		}
+	}
+	spin_unlock(&journal->j_list_lock);
+
+	return ret;
+}
+
 
 static __u32 jbd2_checksum_data(__u32 crc32_sum, struct buffer_head *bh)
 {
@@ -1628,13 +1694,14 @@ start_journal_io:
 				lock_buffer(bh);
 				clear_buffer_dirty(bh);
 				set_buffer_uptodate(bh);
+				//bh->b_end_io = journal_end_buffer_io_sync;
 				/* UFS: Submit IO with barrier for only the last one*/
-				if (i < bufs - 1 || commit_transaction->t_buffers != NULL) {
-					//bh->b_end_io = journal_end_buffer_io_sync;
-					submit_bh(WRITE_SYNC, bh);
-				} else if (commit_transaction->t_buffers == NULL) {
+				if (commit_transaction->t_buffers != NULL) {
+					submit_bh(WRITE_ORDERED, bh);
+				} else if (i == bufs-1 && 
+						commit_transaction->t_buffers == NULL) {
 					bh->b_end_io = journal_end_buffer_io_async;
-					submit_bh(WRITE_SYNC, bh); // UFS: flags should be WRITE_BARRIER
+					submit_bh(WRITE_BARRIER, bh); // UFS: flags should be WRITE_BARRIER
 				}
 				else {
 					/* UFS: Error - Should not be happen */
@@ -1653,7 +1720,7 @@ start_journal_io:
 	/* 
 	 * UFS: We should remove this for barreir.
 	 */
-	err = journal_finish_inode_data_buffers(journal, commit_transaction);
+	err = journal_dispatch_inode_data_buffers(journal, commit_transaction);
 	if (err) {
 		printk(KERN_WARNING
 			"JBD2: Detected IO errors while flushing file data "
@@ -1735,7 +1802,7 @@ start_journal_io:
 		 * newly allocated to submit I/O. Original bh is maintained
 		 * in BJ_Shadow list.  
 		 */
-		//wait_on_buffer(bh);
+		wait_on_buffer_dispatch(bh);
 		//cond_resched();
 
 		//if (unlikely(!buffer_uptodate(bh)))
@@ -1785,7 +1852,7 @@ start_journal_io:
 		 * UFS: For barrier, we do not wait I/Os anymore. We just skip
 		 * this. 
 		 */
-		//wait_on_buffer(bh);
+		wait_on_buffer_dispatch(bh);
 		//cond_resched();
 
 		//if (unlikely(!buffer_uptodate(bh)))
@@ -1824,14 +1891,14 @@ start_journal_io:
 	 * UFS: We need to remove this waiting.
 	 */
 	if (cbh)
-		err = journal_wait_on_commit_record(journal, cbh);
+		err = journal_dispatch_on_commit_record(journal, cbh);
 	/*
 	 * UFS: We will never issue flush in this function for barrier.
 	 */
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
 				      JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT) &&
 	    journal->j_flags & JBD2_BARRIER) {
-		blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
+		//blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
 	}
 
 	if (err)
@@ -1859,10 +1926,12 @@ start_journal_io:
 	//J_ASSERT(commit_transaction->t_shadow_list == NULL);
 
 
+	/*
+	 * UFS
+	 */
 
-
-
-
+	write_lock(&journal->j_state_lock);
+	spin_lock(&journal->j_list_lock);
 
 
 
@@ -1908,6 +1977,8 @@ start_journal_io:
 	J_ASSERT(commit_transaction == journal->j_committing_transaction);
 	journal->j_commit_sequence = commit_transaction->t_tid;
 	journal->j_committing_transaction = NULL;
+	/* UFS */
+	//journal->j_cpsetup_request = commit_transaction->t_tid; 
 	commit_time = ktime_to_ns(ktime_sub(ktime_get(), start_time));
 
 	/*
@@ -1925,25 +1996,41 @@ start_journal_io:
 	 * UFS: Inserting this transaction to j_checkpoint_transactions is
 	 * removed. It will be performed in cpthread. 
 	 */
+
+	if (journal->j_cpsetup_transactions == NULL) {
+		journal->j_cpsetup_transactions = commit_transaction;
+		commit_transaction->t_cpnext = commit_transaction;
+		commit_transaction->t_cpnext = commit_transaction;
+	} else {
+		commit_transactions->t_cpnext =
+			journal->j_cpsetup_transactions;
+		commit_transactions->t_cpprev =
+			commit_transactions->t_cpnext->t_cpprev;
+		commit_transactions->t_cpnext->t_cpprev = 
+			commit_transaction;
+		commit_transactions->t_cpprev->t_cpnext =
+			commit_transaction;
+	}
 	spin_unlock(&journal->j_list_lock);
 
 	trace_jbd2_end_commit(journal, commit_transaction);
 	jbd_debug(1, "JBD2: commit %d complete, head %d\n",
 		  journal->j_commit_sequence, journal->j_tail_sequence);
 
-	write_lock(&journal->j_state_lock);
-	spin_lock(&journal->j_list_lock);
-	commit_transaction->t_state = T_FINISHED;
-	/* UFS: Reemove 
+	//write_lock(&journal->j_state_lock);
+	//spin_lock(&journal->j_list_lock);
+	//commit_transaction->t_state = T_FINISHED;
+	/* UFS: Remove 
 	 * Recheck checkpoint lists after j_list_lock was dropped */
 	/*if (commit_transaction->t_checkpoint_list == NULL &&
 	    commit_transaction->t_checkpoint_io_list == NULL) {
 		__jbd2_journal_drop_transaction(journal, commit_transaction);
 		jbd2_journal_free_transaction(commit_transaction);
 	}*/
-	spin_unlock(&journal->j_list_lock);
-	write_unlock(&journal->j_state_lock);
+	//spin_unlock(&journal->j_list_lock);
+	//write_unlock(&journal->j_state_lock);
 	/* UFS: Wakeup cpsetup thread before wake up someone waits for commit  */
+	
 	wake_up(&journal->j_wait_cpsetup);
 	wake_up(&journal->j_wait_done_commit);
 }
@@ -2125,6 +2212,8 @@ restart_loop:
 
 
 	commit_transaction->t_state = T_COMMIT_CALLBACK;
+	/* UFS */
+	journal->j_cpsetup_sequence = commit_transaction->t_tid;
 
 
 	write_unlock(&journal->j_state_lock);

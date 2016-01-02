@@ -88,6 +88,21 @@ enum rq_cmd_type_bits {
 
 #define BLK_MAX_CDB	16
 
+
+/*
+ * UFS
+ */
+struct epoch {
+	unsigned int req_count;
+	int barrier;
+	struct list_head list;
+};
+
+struct epoch_link {
+	struct epoch *el_epoch;
+	struct epoch_link *el_next;
+};
+
 /*
  * try to put the fields that are referenced together in the same cacheline.
  * if you modify this structure, be sure to check block/blk-core.c:blk_rq_init()
@@ -193,6 +208,10 @@ struct request {
 
 	/* for bidi */
 	struct request *next_rq;
+
+	/* UFS: for barrier */
+	struct epoch_link *epoch_link;
+	struct epoch_link *epoch_link_tail;
 };
 
 static inline unsigned short req_get_ioprio(struct request *req)
@@ -445,6 +464,11 @@ struct request_queue {
 	struct throtl_data *td;
 #endif
 	struct rcu_head		rcu_head;
+
+	/* UFS: for barrier */
+	struct list epoch_list;
+	mempool_t *epoch_pool;
+	mempool_t *epoch_link_pool;	
 };
 
 #define QUEUE_FLAG_QUEUED	1	/* uses generic tag queueing */

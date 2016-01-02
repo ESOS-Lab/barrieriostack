@@ -163,10 +163,11 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	}
 
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
-	if (journal->j_flags & JBD2_BARRIER &&
-	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
-		needs_barrier = true;
-	ret = jbd2_complete_transaction(journal, commit_tid);
+	//if (journal->j_flags & JBD2_BARRIER &&
+	//    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
+	needs_barrier = true;
+	//ret = jbd2_complete_transaction(journal, commit_tid);
+	ret = jbd2_complete_cpsetup_transaction(journal, commit_tid);
 	if (needs_barrier) {
 		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
 		if (!ret)
@@ -197,8 +198,11 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	trace_ext4_sync_file_enter(file, datasync);
 
 	printk("in ext4_fbarrier_file FN\n");
-
-	ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	if (datasync)
+		ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
+	else
+		ret = filemap_ordered_write_range(inode->i_mapping, start, end);
+	
 	if (ret)
 		return ret;
 	mutex_lock(&inode->i_mutex);
@@ -237,15 +241,15 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	}
 
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
-	if (journal->j_flags & JBD2_BARRIER &&
-	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
-		needs_barrier = true;
+	//if (journal->j_flags & JBD2_BARRIER &&
+	//    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
+	//	needs_barrier = true;
 	ret = jbd2_complete_transaction(journal, commit_tid);
-	if (needs_barrier) {
-		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
-		if (!ret)
-			ret = err;
-	}
+	//if (needs_barrier) {
+	//	err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+	//	if (!ret)
+	//		ret = err;
+	//}
  out:
 	mutex_unlock(&inode->i_mutex);
 	trace_ext4_sync_file_exit(inode, ret);

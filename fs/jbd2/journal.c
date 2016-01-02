@@ -796,6 +796,39 @@ int jbd2_log_wait_commit(journal_t *journal, tid_t tid)
 	}
 	return err;
 }
+/* UFS
+ *
+ */
+int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid)
+{
+	int err = 0;
+
+	read_lock(&journal->j_state_lock);
+#ifdef CONFIG_JBD2_DEBUG
+	//if (!tid_geq(journal->j_commit_request, tid)) {
+	//	printk(KERN_EMERG
+	//	       "%s: error: j_cpsetup_request=%d, tid=%d\n",
+	//	       __func__, journal->j_cpsetup_request, tid);
+	//}
+#endif
+	while (tid_gt(tid, journal->j_cpsetup_sequence)) {
+		jbd_debug(1, "JBD2: want %d, j_cpsetup_sequence=%d\n",
+				  tid, journal->j_cpsetup_sequence);
+		//wake_up(&journal->j_wait_commit);
+		wake_up(&journal->j_wait_cpsetup);
+		read_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup,
+				!tid_gt(tid, journal->j_cpsetup_sequence));
+		read_lock(&journal->j_state_lock);
+	}
+	read_unlock(&journal->j_state_lock);
+
+	if (unlikely(is_journal_aborted(journal))) {
+		printk(KERN_EMERG "journal commit I/O error\n");
+		err = -EIO;
+	}
+	return err;
+}
 
 /*
  * When this function returns the transaction corresponding to tid
@@ -827,6 +860,42 @@ wait_commit:
 	return jbd2_log_wait_commit(journal, tid);
 }
 EXPORT_SYMBOL(jbd2_complete_transaction);
+
+/*
+ * UFS:
+ *
+ */
+int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
+{
+	/*
+	 * First perform commit, before waiting the competion of cpsetup.
+	 */
+	jbd2_complete_transaction(journal, tid);
+	//int	need_to_wait = 1;
+
+	//read_lock(&journal->j_state_lock);
+	//if (journal->j_running_transaction &&
+	//    journal->j_running_transaction->t_tid == tid) {
+	//	if (journal->j_commit_request != tid) {
+			/* transaction not yet started, so request it */
+	//		read_unlock(&journal->j_state_lock);
+	//		jbd2_log_start_commit(journal, tid);
+	//		goto wait_commit;
+	//	}
+	//} else if (!(journal->j_committing_transaction &&
+	//	     journal->j_committing_transaction->t_tid == tid))
+	//	need_to_wait = 0;
+	//read_unlock(&journal->j_state_lock);
+	//if (!need_to_wait)
+	//	return 0;
+//wait_commit:
+	/*
+	 * Now, we just wait until cpsetup finishs
+	 */
+	return jbd2_log_wait_cpsetup(journal, tid);
+}
+EXPORT_SYMBOL(jbd2_complete_barrier_transaction);
+
 
 /*
  * Log buffer allocation routines:
@@ -971,7 +1040,9 @@ void __jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block)
 	 * space and if we lose sb update during power failure we'd replay
 	 * old transaction with possibly newly overwritten data.
 	 */
-	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_FUA);
+	//jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_FUA);
+	/* UFS */
+	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_ORDERED);
 	write_lock(&journal->j_state_lock);
 	freed = block - journal->j_tail;
 	if (block < journal->j_tail)

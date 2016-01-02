@@ -417,6 +417,16 @@ extern void end_page_writeback(struct page *page);
 void wait_for_stable_page(struct page *page);
 
 /*
+ * UFS:
+ */
+static inline void wait_on_page_dispatch(struct page *page)
+{
+	if (PageDispatch(page))
+		wait_on_page_bit(page, PG_dispatch);
+}
+extern void end_page_dispatch(struct page *page);
+
+/*
  * Add an arbitrary waiter to a page's wait queue
  */
 extern void add_page_wait_queue(struct page *page, wait_queue_t *waiter);

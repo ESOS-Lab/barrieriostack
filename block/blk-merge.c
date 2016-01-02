@@ -396,6 +396,39 @@ static void blk_account_io_merge(struct request *req)
 	}
 }
 
+
+/* UFS */
+void request_epoch_merge(struct request_queue *q, struct request *req,
+			struct request *next)
+{
+	if (next->cmd_bflags & REQ_ORDERED) {
+		if (next->epoch_link) {
+			BUG();
+		}
+
+		if (req->cmd_bflags & REQ_ORDERED) {
+			if (!req->epoch_link) 
+				BUG();
+			else if (req->epoch_link->epoch 
+						== next->epoch_link->epoch) {
+				req->epoch_link->epoch->req_count--;
+				if (req->epoch_link->epoch->req_count <= 0)
+					BUG();	
+				return;
+			}			
+		}
+		if (req->epoch_link) {
+			req->epoch_link_tail->el_next = next->epoch_link;
+			req->epoch_link_tail = next->epoch_link_tail;
+		}
+		else {
+			req->epoch_link = next->epoch_link;
+			req->epoch_link_tail = next->epoch_link_tail;
+		}
+	}
+}
+
+
 /*
  * Has to be called with the request spinlock acquired
  */
@@ -453,6 +486,11 @@ static int attempt_merge(struct request_queue *q, struct request *req,
 	 */
 	if (time_after(req->start_time, next->start_time))
 		req->start_time = next->start_time;
+
+
+	/* UFS */
+	request_epoch_merge(struct request_queue *q, struct request *req
+						struct request *next);
 
 	req->biotail->bi_next = next->bio;
 	req->biotail = next->biotail;
