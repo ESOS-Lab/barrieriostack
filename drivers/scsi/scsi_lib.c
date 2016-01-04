@@ -1633,7 +1633,11 @@ static void scsi_request_fn(struct request_queue *q)
 			goto out_delay;
 		
 		if (req->cmd_bflags & REQ_ORDERED)
+<<<<<<< HEAD
 			blk_request_dispatched(req);
+=======
+			blk_request_dispatch(req);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 	}
 	goto out;
 

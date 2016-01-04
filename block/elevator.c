@@ -383,9 +383,15 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 			if (epoch->req_count == 0 && epoch->barrier) {
 				rq->cmd_bflags |= REQ_BARRIER;
 				epoch->barrier = 0;
+<<<<<<< HEAD
 				if (list_entry(epoch->list.prev, struct epoch, list) != epoch) {
 					list_del(&epoch->list);
 					mempool_free(epoch, q->epoch_pool);
+=======
+				if (list_entry(&epoch->list.prev, struct epoch, list) != epoch) {
+					list_del(&epoch);
+					mempool_free(epoch);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 				}
 				else
 					BUG();
@@ -393,7 +399,11 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 			link = rq->epoch_link->el_next;
 			if (rq->epoch_link == rq->epoch_link_tail) 
 				rq->epoch_link_tail = link;
+<<<<<<< HEAD
 			mempool_free(rq->epoch_link, q->epoch_link_pool);
+=======
+			mempool_free(rq->epoch_link);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			rq->epoch_link = link;
 		}
 	}
@@ -674,11 +684,21 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		break;
 
 	case ELEVATOR_INSERT_SORT_MERGE:
+<<<<<<< HEAD
 	
 		current_epoch = list_entry(q->epoch_list.prev, struct epoch, list);
 
 		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
 			rq->epoch_link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+=======
+		/* UFS 
+		 *
+		 */
+		struct epoch* current_epoch = list_entry(&q->epoch_list.prev, struct epoch, list);
+
+		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
+			rq->epoch_link = mempool_alloc(q->epoch_link_pool);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			if (!rq->epoch_link)
 				BUG();
 			current_epoch->req_count++;
@@ -689,8 +709,13 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		{
 			rq->cmd_bflags &= ~REQ_BARRIER;
 			current_epoch->barrier = 1;
+<<<<<<< HEAD
 			current_epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
 			INIT_LIST_HEAD(&current_epoch->list);
+=======
+			current_epoch = mempool_alloc(q->epoch_pool);
+			list_init(&current_epoch);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			current_epoch->req_count = 0;
 			current_epoch->barrier = 0;
 			list_add_tail(&current_epoch->list, &q->epoch_list);

@@ -734,6 +734,7 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 
 	/* UFS */
 	q->epoch_pool = mempool_create_node(BLKDEV_MIN_RQ, mempool_alloc_slab,
+<<<<<<< HEAD
 			mempool_free_slab, epoch_cachep, GFP_NOFS, q->node);
 	if (!q->epoch_pool)
 		return NULL;
@@ -747,6 +748,21 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 	q->epoch_link_pool = mempool_create_node(BLKDEV_MIN_RQ, 
 			mempool_alloc_slab, mempool_free_slab, 
 			epoch_link_cachep, GFP_NOFS, q->node);
+=======
+			mempool_free_slab, epoch_cachep, gfp_mask, node_id);
+	if (!q->epoch_pool)
+		return NULL;
+	list_init(&q->epoch_list);
+	epoch = q->mempool_alloc(q->epoch_pool);
+	epoch->barrier = 0;
+	epoch->req_count = 0;
+
+	list_init(&epoch->list);
+	list_add_tail(&epoch->list, &q->epoch_list);
+	q->epoch_link_pool = mempool_create_node(BLKDEV_MIN_RQ, 
+			mempool_alloc_slab, mempool_free_slab, 
+			epoch_link_cachep, gfp_mask, node_id);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 	if (!q->epoch_link_pool) {
 		mempool_destroy(q->epoch_pool);
 		return NULL;
@@ -1385,20 +1401,35 @@ static inline void bio_epoch_merge(struct request_queue *q, struct request *req,
 				struct bio *bio)
 {
 	if (bio->bi_rw & REQ_ORDERED) {
+<<<<<<< HEAD
 		struct epoch* epoch = list_entry(q->epoch_list.prev, 
 						struct epoch, list);
 		if (!req->epoch_link || 
 			(req->epoch_link && epoch != req->epoch_link->el_epoch)) {
+=======
+		struct epoch* epoch = list_entry(&q->epoch_list.prev, 
+						struct epoch, list);
+		if (!req->epoch_link || 
+			(req->epoch_link && epoch != req->epoch_link->epoch)) {
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			struct epoch_link *link;
 
 			epoch->req_count++;
 
+<<<<<<< HEAD
 			link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+=======
+			link = mempool_alloc(q->epoch_link_pool);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			link->el_epoch = epoch;
 			link->el_next = NULL;
 			if (req->epoch_link) {
 				req->epoch_link_tail->el_next = link;
+<<<<<<< HEAD
 				req->epoch_link_tail = link;
+=======
+				req->epoch_iink_tail = link;
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			}
 			else
 				req->epoch_link = req->epoch_link_tail = link;
@@ -2346,7 +2377,11 @@ EXPORT_SYMBOL(blk_start_request);
  *
  */
 
+<<<<<<< HEAD
 void blk_request_dispatched(struct request *req)
+=======
+void blk_dispatch_request(struct request *req)
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 {
 	if (req->cmd_type != REQ_TYPE_FS)
 		return;
@@ -2377,7 +2412,11 @@ void blk_request_dispatched(struct request *req)
 			if (bh) {
 				bh = head = page_buffers(page);
 				do {
+<<<<<<< HEAD
 					wake_up_buffer_dispatch(bh);
+=======
+					buffer_dispatch(bh);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 				} while ((bh = bh->b_this_page) != head);
 			}
 			//bit_spin_unlock(BH_, &head->b_state);
@@ -2388,7 +2427,11 @@ void blk_request_dispatched(struct request *req)
 		req->bio = bio->bi_next;
 	}
 }
+<<<<<<< HEAD
 EXPORT_SYMBOL(blk_request_dispatched);
+=======
+EXPORT_SYMBOL(blk_dispatch_request);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 /**
  * blk_fetch_request - fetch a request from a request queue
@@ -3113,9 +3156,15 @@ EXPORT_SYMBOL(blk_check_plugged);
 void blk_start_new_epoch(struct request_queue *q)
 {
 	struct epoch *epoch;
+<<<<<<< HEAD
 	epoch = list_entry(q->epoch_list.prev, struct epoch, list);
 	epoch->barrier = 1;
 	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+=======
+	//epoch = list_entry(&q->epoch_list.prev, struct epoch, list);
+	epoch->barrier = 1;
+	epoch = mempool_alloc(q->epoch_pool);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 	epoch->barrier = 0;
 	epoch->req_count = 0;
 	list_add_tail(&epoch->list, &q->epoch_list);
@@ -3223,11 +3272,19 @@ EXPORT_SYMBOL(blk_finish_plug);
 void blk_issue_barrier_plug(struct blk_plug *plug)
 {
 	struct request *req;
+<<<<<<< HEAD
 	if (list_empty(&plug->list))
 			return;
 	req = list_entry_rq(plug->list.prev);
 	
 	req->cmd_bflags |= REQ_BARRIER;
+=======
+	if (list_empty(&plug->list)
+			return;
+	req = list_entry_rq(&plug->list.prev);
+	
+	req->cmd_bflags |= REQ_BARRER;
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 }
 EXPORT_SYMBOL(blk_issue_barrier_plug);
 

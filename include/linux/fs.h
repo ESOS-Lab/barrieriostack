@@ -2221,9 +2221,12 @@ extern int filemap_fdatadispatch_range(struct address_space *, loff_t lstart,
 					loff_t lend);
 extern int filemap_write_and_dispatch_range(struct address_space *,
 		loff_t lstart, loff_t lend);
+<<<<<<< HEAD
 extern int filemap_ordered_write_range(struct address_space *,
 		loff_t lstart, loff_t lend);
 
+=======
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 extern int filemap_write_and_wait(struct address_space *mapping);
 extern int filemap_write_and_wait_range(struct address_space *mapping,

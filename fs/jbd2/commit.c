@@ -264,10 +264,17 @@ static int journal_submit_commit_record(journal_t *journal,
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !JBD2_HAS_INCOMPAT_FEATURE(journal,
 				       JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT))
+<<<<<<< HEAD
 		ret = submit_bh_64flags(WRITE_SYNC | WRITE_BARRIER, bh);
 		//ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
 	else
 		ret = submit_bh_64flags(WRITE_BARRIER, bh);
+=======
+		ret = submit_bh(WRITE_SYNC | WRITE_BARRIER, bh);
+		//ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
+	else
+		ret = submit_bh(WRITE_BARRIER, bh);
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 		//ret = submit_bh(WRITE_SYNC, bh);
 
 	*cbh = bh;
@@ -1700,11 +1707,19 @@ start_journal_io:
 				//bh->b_end_io = journal_end_buffer_io_sync;
 				/* UFS: Submit IO with barrier for only the last one*/
 				if (commit_transaction->t_buffers != NULL) {
+<<<<<<< HEAD
 					submit_bh_64flags(WRITE_ORDERED, bh);
 				} else if (i == bufs-1 && 
 						commit_transaction->t_buffers == NULL) {
 					//bh->b_end_io = journal_end_buffer_io_async;
 					submit_bh_64flags(WRITE_BARRIER, bh); // UFS: flags should be WRITE_BARRIER
+=======
+					submit_bh(WRITE_ORDERED, bh);
+				} else if (i == bufs-1 && 
+						commit_transaction->t_buffers == NULL) {
+					bh->b_end_io = journal_end_buffer_io_async;
+					submit_bh(WRITE_BARRIER, bh); // UFS: flags should be WRITE_BARRIER
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 				}
 				else {
 					/* UFS: Error - Should not be happen */
@@ -2005,6 +2020,7 @@ start_journal_io:
 		commit_transaction->t_cpnext = commit_transaction;
 		commit_transaction->t_cpnext = commit_transaction;
 	} else {
+<<<<<<< HEAD
 		commit_transaction->t_cpnext =
 			journal->j_cpsetup_transactions;
 		commit_transaction->t_cpprev =
@@ -2012,6 +2028,15 @@ start_journal_io:
 		commit_transaction->t_cpnext->t_cpprev = 
 			commit_transaction;
 		commit_transaction->t_cpprev->t_cpnext =
+=======
+		commit_transactions->t_cpnext =
+			journal->j_cpsetup_transactions;
+		commit_transactions->t_cpprev =
+			commit_transactions->t_cpnext->t_cpprev;
+		commit_transactions->t_cpnext->t_cpprev = 
+			commit_transaction;
+		commit_transactions->t_cpprev->t_cpnext =
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 			commit_transaction;
 	}
 	spin_unlock(&journal->j_list_lock);

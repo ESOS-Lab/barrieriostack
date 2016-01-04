@@ -467,7 +467,11 @@ struct request_queue {
 	struct rcu_head		rcu_head;
 
 	/* UFS: for barrier */
+<<<<<<< HEAD
 	struct list_head epoch_list;
+=======
+	struct list epoch_list;
+>>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 	mempool_t *epoch_pool;
 	mempool_t *epoch_link_pool;	
 };
