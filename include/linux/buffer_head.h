@@ -38,6 +38,8 @@ enum bh_state_bits {
 	BH_Prio,	/* Buffer should be submitted with REQ_PRIO */
 	BH_Sync_Flush,
 
+	BH_Dispatch,	/* UFS  */
+
 	BH_PrivateStart,/* not a state bit, but the first bit available
 			 * for private allocation by other entities
 			 */
@@ -131,6 +133,10 @@ BUFFER_FNS(Meta, meta)
 BUFFER_FNS(Prio, prio)
 BUFFER_FNS(Sync_Flush, sync_flush)
 
+/* UFS Functions */
+BUFFER_FNS(Dispatch, dispatch)
+TAS_BUFFER_FNS(Dispatch, dispatch)
+
 #define bh_offset(bh)		((unsigned long)(bh)->b_data & ~PAGE_MASK)
 
 /* If we *know* page->private refers to buffer_heads */
@@ -172,6 +178,8 @@ void unmap_underlying_metadata(struct block_device *bdev, sector_t block);
 void mark_buffer_async_write(struct buffer_head *bh);
 void __wait_on_buffer(struct buffer_head *);
 wait_queue_head_t *bh_waitq_head(struct buffer_head *bh);
+/* UFS */
+void __wait_on_buffer_dispatch(struct buffer_head *);
 struct buffer_head *__find_get_block(struct block_device *bdev, sector_t block,
 			unsigned size);
 struct buffer_head *__getblk(struct block_device *bdev, sector_t block,
@@ -191,6 +199,10 @@ int __sync_dirty_buffer(struct buffer_head *bh, int rw);
 void write_dirty_buffer(struct buffer_head *bh, int rw);
 int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags);
 int submit_bh(int, struct buffer_head *);
+/* UFS */
+int _submit_bh_64flags(long long rw, struct buffer_head *bh, unsigned long long bio_flags);
+int submit_bh_64flags(long long rw, struct buffer_head *bh);
+
 void write_boundary_block(struct block_device *bdev,
 			sector_t bblock, unsigned blocksize);
 int bh_uptodate_or_lock(struct buffer_head *bh);
@@ -345,6 +357,24 @@ static inline void lock_buffer(struct buffer_head *bh)
 }
 
 extern int __set_page_dirty_buffers(struct page *page);
+
+/* UFS: buffer dispatch wait functions */
+static inline void wait_on_buffer_dispatch(struct buffer_head *bh)
+{
+	//might_sleep();
+	if (buffer_dispatch(bh))
+		__wait_on_buffer_dispatch(bh);
+		//wait_on_bit(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
+}
+
+static inline void wake_up_buffer_dispatch(struct buffer_head *bh)
+{
+	if (test_clear_buffer_dispatch(bh)) {
+		smp_mb__after_clear_bit(); 
+		wake_up_bit(&bh->b_state, BH_Dispatch);
+	}
+}
+
 
 #else /* CONFIG_BLOCK */
 

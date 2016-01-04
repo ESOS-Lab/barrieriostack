@@ -1631,8 +1631,10 @@ static void scsi_request_fn(struct request_queue *q)
 		spin_lock_irq(q->queue_lock);
 		if (rtn)
 			goto out_delay;
+		
+		if (req->cmd_bflags & REQ_ORDERED)
+			blk_request_dispatched(req);
 	}
-
 	goto out;
 
  not_ready:

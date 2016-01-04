@@ -251,6 +251,12 @@ int filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 }
 EXPORT_SYMBOL(filemap_fdatawrite_range);
 
+/* UFS */
+int filemap_ordered_write_range(struct address_space *mapping, loff_t start,
+				loff_t end)
+{
+	return __filemap_fdatawrite_range(mapping, start, end, WB_BARRIER_ALL);
+}
 /**
  * filemap_flush - mostly a non-blocking flush
  * @mapping:	target address_space
@@ -315,6 +321,54 @@ out:
 }
 EXPORT_SYMBOL(filemap_fdatawait_range);
 
+/*
+ * UFS
+ */
+int filemap_fdatadispatch_range(struct address_space *mapping, loff_t start_byte,
+			    loff_t end_byte)
+{
+	pgoff_t index = start_byte >> PAGE_CACHE_SHIFT;
+	pgoff_t end = end_byte >> PAGE_CACHE_SHIFT;
+	struct pagevec pvec;
+	int nr_pages;
+	int ret2, ret = 0;
+
+	if (end_byte < start_byte)
+		goto out;
+
+	pagevec_init(&pvec, 0);
+	while ((index <= end) &&
+			(nr_pages = pagevec_lookup_tag(&pvec, mapping, &index,
+			PAGECACHE_TAG_WRITEBACK,
+			min(end - index, (pgoff_t)PAGEVEC_SIZE-1) + 1)) != 0) {
+		unsigned i;
+
+		for (i = 0; i < nr_pages; i++) {
+			struct page *page = pvec.pages[i];
+
+			/* until radix tree lookup accepts end_index */
+			if (page->index > end)
+				continue;
+
+			wait_on_page_dispatch(page);
+			//if (TestClearPageError(page))
+			//	ret = -EIO;
+		}
+		pagevec_release(&pvec);
+		cond_resched();
+	}
+out:
+	return ret;
+
+	ret2 = filemap_check_errors(mapping);
+	if (!ret)
+		ret = ret2;
+
+	return ret;
+}
+EXPORT_SYMBOL(filemap_fdatadispatch_range);
+
+
 /**
  * filemap_fdatawait - wait for all under-writeback pages to complete
  * @mapping: address space structure to wait for
@@ -332,6 +386,44 @@ int filemap_fdatawait(struct address_space *mapping)
 	return filemap_fdatawait_range(mapping, 0, i_size - 1);
 }
 EXPORT_SYMBOL(filemap_fdatawait);
+/*
+ * UFS
+ *
+ */
+int filemap_fdatadispatch(struct address_space *mapping)
+{
+	loff_t i_size = i_size_read(mapping->host);
+
+	if (i_size == 0)
+		return 0;
+
+	return filemap_fdatadispatch_range(mapping, 0, i_size - 1);
+}
+EXPORT_SYMBOL(filemap_fdatadispatch);
+
+int filemap_write_and_dispatch_range(struct address_space *mapping,
+				 loff_t lstart, loff_t lend)
+{
+	int err = 0;
+
+	if (mapping->nrpages) {
+		err = __filemap_fdatawrite_range(mapping, lstart, lend,
+						 WB_BARRIER_ALL);
+		/* See comment of filemap_write_and_wait() */
+		if (err != -EIO) {
+			int err2 = filemap_fdatadispatch_range(mapping,
+						lstart, lend);
+			if (!err)
+				err = err2;
+		}
+	} else {
+		err = filemap_check_errors(mapping);
+	}
+	return err;
+}
+EXPORT_SYMBOL(filemap_write_and_dispatch_range);
+
+
 
 int filemap_write_and_wait(struct address_space *mapping)
 {
@@ -628,6 +720,18 @@ void end_page_writeback(struct page *page)
 	wake_up_page(page, PG_writeback);
 }
 EXPORT_SYMBOL(end_page_writeback);
+
+/** UFS
+ * end_page_dispatch - 
+ */
+void end_page_dispatch(struct page *page)
+{
+	if (TestClearPageDispatch(page)) {
+		smp_mb__after_clear_bit();
+		wake_up_page(page, PG_dispatch);
+	}	
+}
+EXPORT_SYMBOL(end_page_dispatch);
 
 /**
  * __lock_page - get a lock on the page, assuming we need to sleep to get it

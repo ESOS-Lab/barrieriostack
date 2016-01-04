@@ -1810,18 +1810,53 @@ continue_unlock:
 				unlock_page(page);
 				continue;
 			}
+			
 
 			if (!PageDirty(page)) {
 				/* someone wrote it for us */
+				//if (i==nr_pages-1 && 
+				//	wbc->sync_mode == WB_BARRIER_ALL) {
+					/* UFS: dirty page */
+				//	SetPageDirty(page);
+				//}
+				//else
 				goto continue_unlock;
 			}
 
 			if (PageWriteback(page)) {
 				if (wbc->sync_mode != WB_SYNC_NONE)
 					wait_on_page_writeback(page);
+				/* 
+				 * UFS: Should we wait? 
+				 */
+				else if (wbc->sync_mode == WB_BARRIER_ALL)
+				{
+					//if (i==nr_pages-1) {
+					//	wait_on_page_writeback(page);
+					//	SetPageDirty(page);
+					//}
+					//else {
+					
+						/* UFS
+						 * may async or non ordered
+						 * So, we wait until dispatch
+						 * Note that barrier will not
+						 * preceed this.
+						 */
+						wait_on_page_dispatch(page);
+						goto continue_unlock;
+					//}
+					//if(!PageDispatch(page))
+				}
 				else
 					goto continue_unlock;
 			}
+
+			//if (wbc->sync_mode == WB_BARRIER_ALL && i==nr_pages-1)
+			//	wbc->sync_mode = WB_BARRIER_ALL;
+			//else
+			//	wbc->sync_mode = WB_ORDERED_ALL;
+
 
 			BUG_ON(PageWriteback(page));
 			if (!clear_page_dirty_for_io(page))
@@ -1915,6 +1950,8 @@ int generic_writepages(struct address_space *mapping,
 
 	blk_start_plug(&plug);
 	ret = write_cache_pages(mapping, wbc, __writepage, mapping);
+	if (wbc->sync_mode == WB_BARRIER_ALL)
+		blk_issue_barrier_plug(&plug);
 	blk_finish_plug(&plug);
 	return ret;
 }

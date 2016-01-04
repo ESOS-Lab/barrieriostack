@@ -1477,6 +1477,15 @@ static void ufshcd_prepare_req_desc_hdr(struct ufshcd_lrb *lrbp,
 			!(lrbp->cmd->request->cmd_flags & REQ_FLUSH)) {
 			*upiu_flags |= UPIU_COMMAND_PRIORITY_HIGH;
 		}
+		/*
+		 * UFS: Set ORDERED flags to BARRIER request to
+		 * ensure it is properly processed after previous rq
+		 */
+		if ((lrbp->commnad_type == UTP_CMD_TYPE_SCSI) &&
+			(lrbp->cmd->request->cmd_flags & REQ_SYNC) &&
+			(lrbp->cmd->request->cmd_bflags & REQ_BARRIER)) {
+			*upiu_flags |= UPIU_TASK_ATTR_ORDERED;
+		}
 #endif
 	} else {
 		data_direction = UTP_NO_DATA_TRANSFER;

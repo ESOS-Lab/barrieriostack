@@ -196,8 +196,8 @@ typedef void (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 #define WRITE_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FUA)
 #define WRITE_FLUSH_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FLUSH | REQ_FUA)
 // UFS project
-#define WRITE_BARRIER		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_BARRIER)
-
+#define WRITE_BARRIER		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_BARRIER | REQ_ORDERED)
+#define WRITE_ORDERED		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_ORDERED)
 /*
  * Attribute flags.  These should be or-ed together to figure out what
  * has been changed!
@@ -2215,6 +2215,16 @@ extern int filemap_flush(struct address_space *);
 extern int filemap_fdatawait(struct address_space *);
 extern int filemap_fdatawait_range(struct address_space *, loff_t lstart,
 				   loff_t lend);
+/* UFS */
+extern int filemap_fdatadispatch(struct address_space *);
+extern int filemap_fdatadispatch_range(struct address_space *, loff_t lstart,
+					loff_t lend);
+extern int filemap_write_and_dispatch_range(struct address_space *,
+		loff_t lstart, loff_t lend);
+extern int filemap_ordered_write_range(struct address_space *,
+		loff_t lstart, loff_t lend);
+
+
 extern int filemap_write_and_wait(struct address_space *mapping);
 extern int filemap_write_and_wait_range(struct address_space *mapping,
 				        loff_t lstart, loff_t lend);
@@ -2408,6 +2418,7 @@ extern void inode_sb_list_add(struct inode *inode);
 
 #ifdef CONFIG_BLOCK
 extern void submit_bio(int, struct bio *);
+extern void submit_bio_64flags(long long, struct bio *);
 extern int bdev_read_only(struct block_device *);
 #endif
 extern int set_blocksize(struct block_device *, int);

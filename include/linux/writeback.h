@@ -34,6 +34,8 @@ struct backing_dev_info;
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
 	WB_SYNC_ALL,	/* Wait on every mapping */
+	WB_ORDERED_ALL, /* UFS */
+	WB_BARRIER_ALL, /* UFS */
 };
 
 /*

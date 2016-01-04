@@ -352,7 +352,7 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 {
 	sector_t boundary;
 	struct list_head *entry;
-	int stop_flags;
+	long long stop_flags;
 
 	if (q->last_merge == rq)
 		q->last_merge = NULL;
@@ -363,6 +363,42 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 
 	boundary = q->end_sector;
 	stop_flags = REQ_SOFTBARRIER | REQ_STARTED;
+	/*
+	 * UFS
+	 */
+	stop_flags = REQ_BARRIER | REQ_SOFTBARRIER | REQ_STARTED;
+	if (rq->cmd_bflags & REQ_ORDERED) {
+		struct epoch *epoch;
+		struct epoch_link* link;
+
+		if (!rq->epoch_link)
+			BUG();
+		link = rq->epoch_link;
+		while (link) {
+			epoch = link->el_epoch;
+			if (!epoch->req_count)
+				BUG();
+			
+			epoch->req_count--;
+			if (epoch->req_count == 0 && epoch->barrier) {
+				rq->cmd_bflags |= REQ_BARRIER;
+				epoch->barrier = 0;
+				if (list_entry(epoch->list.prev, struct epoch, list) != epoch) {
+					list_del(&epoch->list);
+					mempool_free(epoch, q->epoch_pool);
+				}
+				else
+					BUG();
+			}
+			link = rq->epoch_link->el_next;
+			if (rq->epoch_link == rq->epoch_link_tail) 
+				rq->epoch_link_tail = link;
+			mempool_free(rq->epoch_link, q->epoch_link_pool);
+			rq->epoch_link = link;
+		}
+	}
+
+	
 	list_for_each_prev(entry, &q->queue_head) {
 		struct request *pos = list_entry_rq(entry);
 
@@ -382,6 +418,9 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 		}
 		if (blk_rq_pos(rq) >= blk_rq_pos(pos))
 			break;
+		if (rq->cmd_bflags & REQ_BARRIER)
+		       	//&& (pos->cmd_blafgs & REQ_ORDERED))
+			break;	
 	}
 
 	list_add(&rq->queuelist, entry);
@@ -592,12 +631,13 @@ void elv_drain_elevator(struct request_queue *q)
 
 void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 {
+	struct epoch* current_epoch;
 	trace_block_rq_insert(q, rq);
 
 	blk_pm_add_request(q, rq);
 
 	rq->q = q;
-
+	
 	if (rq->cmd_flags & REQ_SOFTBARRIER) {
 		/* barriers are scheduling boundary, update end_sector */
 		if (rq->cmd_type == REQ_TYPE_FS) {
@@ -634,6 +674,29 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		break;
 
 	case ELEVATOR_INSERT_SORT_MERGE:
+	
+		current_epoch = list_entry(q->epoch_list.prev, struct epoch, list);
+
+		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
+			rq->epoch_link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+			if (!rq->epoch_link)
+				BUG();
+			current_epoch->req_count++;
+			rq->epoch_link->el_epoch = current_epoch;
+			rq->epoch_link->el_next = NULL;
+		}
+		if (rq->cmd_bflags & REQ_BARRIER)// && where != ELEVATOR_INSERT_REQUEUE) {
+		{
+			rq->cmd_bflags &= ~REQ_BARRIER;
+			current_epoch->barrier = 1;
+			current_epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+			INIT_LIST_HEAD(&current_epoch->list);
+			current_epoch->req_count = 0;
+			current_epoch->barrier = 0;
+			list_add_tail(&current_epoch->list, &q->epoch_list);
+			//was_barrier = 1;
+		}
+
 		/*
 		 * If we succeed in merging this request with one in the
 		 * queue already, we are done - rq has now been freed,
@@ -668,6 +731,15 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		       __func__, where);
 		BUG();
 	}
+	/* UFS */
+	//if ((rq->cmd_bflags & REQ_BARRIER) && where != ELEVATOR_REQUEUE) {
+		//blk_start_new_epoch(q);
+		//current_epoch = list_entry(&q->epoch_list.prev, struct epoch, list);
+		//current_epoch->barrier = 1;
+			//rq->cmd_bflags &= ~REQ_BARRER;
+
+	//}
+
 }
 EXPORT_SYMBOL(__elv_add_request);
 

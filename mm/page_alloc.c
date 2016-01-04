@@ -6277,6 +6277,8 @@ static const struct trace_print_flags pageflag_names[] = {
 #ifdef CONFIG_SDP
 	{1UL << PG_sensitive,	"sensitive"	},
 #endif
+	/* UFS barrier */
+	{1UL << PG_dispatch,	"dispatch"	}, 
 };
 
 static void dump_page_flags(unsigned long flags)

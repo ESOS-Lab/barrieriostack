@@ -88,6 +88,21 @@ enum rq_cmd_type_bits {
 
 #define BLK_MAX_CDB	16
 
+
+/*
+ * UFS
+ */
+struct epoch {
+	unsigned int req_count;
+	int barrier;
+	struct list_head list;
+};
+
+struct epoch_link {
+	struct epoch *el_epoch;
+	struct epoch_link *el_next;
+};
+
 /*
  * try to put the fields that are referenced together in the same cacheline.
  * if you modify this structure, be sure to check block/blk-core.c:blk_rq_init()
@@ -100,6 +115,7 @@ struct request {
 	struct request_queue *q;
 
 	unsigned int cmd_flags;
+	unsigned long long cmd_bflags; /* UFS */
 	enum rq_cmd_type_bits cmd_type;
 	unsigned long atomic_flags;
 
@@ -193,6 +209,10 @@ struct request {
 
 	/* for bidi */
 	struct request *next_rq;
+
+	/* UFS: for barrier */
+	struct epoch_link *epoch_link;
+	struct epoch_link *epoch_link_tail;
 };
 
 static inline unsigned short req_get_ioprio(struct request *req)
@@ -445,6 +465,11 @@ struct request_queue {
 	struct throtl_data *td;
 #endif
 	struct rcu_head		rcu_head;
+
+	/* UFS: for barrier */
+	struct list_head epoch_list;
+	mempool_t *epoch_pool;
+	mempool_t *epoch_link_pool;	
 };
 
 #define QUEUE_FLAG_QUEUED	1	/* uses generic tag queueing */
@@ -1018,6 +1043,10 @@ extern struct blk_plug_cb *blk_check_plugged(blk_plug_cb_fn unplug,
 extern void blk_start_plug(struct blk_plug *);
 extern void blk_finish_plug(struct blk_plug *);
 extern void blk_flush_plug_list(struct blk_plug *, bool);
+
+/* UFS */
+extern void blk_issue_barrier_plug(struct blk_plug *);
+extern void blk_request_dispatched(struct request *req);
 
 static inline void blk_flush_plug(struct task_struct *tsk)
 {

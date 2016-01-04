@@ -659,11 +659,15 @@ static void jbd2_revoke_csum_set(journal_t *j, struct buffer_head *bh)
  */
 static void journal_end_revoke_write_async(struct buffer_head *bh, int uptodate)
 {
-	char b[BDEVNAME_SIZE];
+	//char b[BDEVNAME_SIZE];
 
 	if (uptodate) {
 		set_buffer_uptodate(bh);
-	} else {
+	} else { 
+		set_buffer_write_io_error(bh);
+		clear_buffer_uptodate(bh);
+	}
+/*	{
 		if (!quiet_error(bh)) {
 			buffer_io_error(bh);
 			printf(KERNL_WARNING "lost page write due to "
@@ -671,7 +675,9 @@ static void journal_end_revoke_write_async(struct buffer_head *bh, int uptodate)
 					bdevname(bh->bdev, b));
 		}
 		set_buffer_write_io_error(bh);
+		clear_buffer_uptodate(bh);
 	}
+*/
 	unlock_buffer(bh);
 	put_bh(bh);
 	/*

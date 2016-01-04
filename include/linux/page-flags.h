@@ -119,6 +119,9 @@ enum pageflags {
 #ifdef CONFIG_SDP
 	PG_sensitive,
 #endif
+	
+	PG_dispatch,		/* UFS */
+
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -241,6 +244,11 @@ PAGEFLAG(MappedToDisk, mappedtodisk)
 /* PG_readahead is only used for file reads; PG_reclaim is only for writes */
 PAGEFLAG(Reclaim, reclaim) TESTCLEARFLAG(Reclaim, reclaim)
 PAGEFLAG(Readahead, reclaim)		/* Reminder to do async read-ahead */
+
+/*
+ * UFS
+ */
+PAGEFLAG(Dispatch, dispatch) TESTSCFLAG(Dispatch, dispatch)
 
 #ifdef CONFIG_HIGHMEM
 /*
