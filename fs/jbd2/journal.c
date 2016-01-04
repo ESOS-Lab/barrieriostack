@@ -894,11 +894,7 @@ int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
 	 */
 	return jbd2_log_wait_cpsetup(journal, tid);
 }
-<<<<<<< HEAD
 EXPORT_SYMBOL(jbd2_complete_cpsetup_transaction);
-=======
-EXPORT_SYMBOL(jbd2_complete_barrier_transaction);
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 
 /*

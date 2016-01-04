@@ -38,11 +38,7 @@ enum bh_state_bits {
 	BH_Prio,	/* Buffer should be submitted with REQ_PRIO */
 	BH_Sync_Flush,
 
-<<<<<<< HEAD
 	BH_Dispatch,	/* UFS  */
-=======
-	BH_Dispatch	/* UFS  */
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 	BH_PrivateStart,/* not a state bit, but the first bit available
 			 * for private allocation by other entities
@@ -367,24 +363,17 @@ static inline void wait_on_buffer_dispatch(struct buffer_head *bh)
 {
 	//might_sleep();
 	if (buffer_dispatch(bh))
-<<<<<<< HEAD
 		__wait_on_buffer_dispatch(bh);
 		//wait_on_bit(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
 }
 
-static inline void wake_up_buffer_dispatch(struct buffer_head *bh)
-=======
-		wait_on_bit(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
-}
-
-static inline void buffer_dispatch(struct buffer_head *bh)
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
-{
+static inline void wake_up_buffer_dispatch(struct buffer_head *bh) {
 	if (test_clear_buffer_dispatch(bh)) {
-		smp_mb__after_clear_bit(); 
+		smp_mb__after_clear_bit();
 		wake_up_bit(&bh->b_state, BH_Dispatch);
 	}
 }
+
 
 
 #else /* CONFIG_BLOCK */

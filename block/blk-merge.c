@@ -409,17 +409,10 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 		if (req->cmd_bflags & REQ_ORDERED) {
 			if (!req->epoch_link) 
 				BUG();
-<<<<<<< HEAD
 			else if (req->epoch_link->el_epoch 
 						== next->epoch_link->el_epoch) {
 				req->epoch_link->el_epoch->req_count--;
 				if (req->epoch_link->el_epoch->req_count <= 0)
-=======
-			else if (req->epoch_link->epoch 
-						== next->epoch_link->epoch) {
-				req->epoch_link->epoch->req_count--;
-				if (req->epoch_link->epoch->req_count <= 0)
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 					BUG();	
 				return;
 			}			
@@ -496,12 +489,7 @@ static int attempt_merge(struct request_queue *q, struct request *req,
 
 
 	/* UFS */
-<<<<<<< HEAD
 	request_epoch_merge(q, req, next);
-=======
-	request_epoch_merge(struct request_queue *q, struct request *req
-						struct request *next);
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 	req->biotail->bi_next = next->bio;
 	req->biotail = next->biotail;

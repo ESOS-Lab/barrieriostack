@@ -248,11 +248,7 @@ PAGEFLAG(Readahead, reclaim)		/* Reminder to do async read-ahead */
 /*
  * UFS
  */
-<<<<<<< HEAD
 PAGEFLAG(Dispatch, dispatch) TESTSCFLAG(Dispatch, dispatch)
-=======
-PAGEFLAG(Dispatch, dispatch) TESTSCFLAG(Diskpatch, dispatch)
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 
 #ifdef CONFIG_HIGHMEM
 /*

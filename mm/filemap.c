@@ -397,11 +397,7 @@ int filemap_fdatadispatch(struct address_space *mapping)
 	if (i_size == 0)
 		return 0;
 
-<<<<<<< HEAD
 	return filemap_fdatadispatch_range(mapping, 0, i_size - 1);
-=======
-	return filemap_fdatawait_dispatch_range(mapping, 0, i_size - 1);
->>>>>>> 369d382cc44f80fb638b7b1d6891bcce9b14c57c
 }
 EXPORT_SYMBOL(filemap_fdatadispatch);
 
