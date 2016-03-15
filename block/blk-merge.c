@@ -409,19 +409,16 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 		if (req->cmd_bflags & REQ_ORDERED) {
 			if (!req->epoch_link) 
 				BUG();
-			else if (req->epoch_link->el_epoch 
-						== next->epoch_link->el_epoch) {
-				req->epoch_link->el_epoch->req_count--;
-				if (req->epoch_link->el_epoch->req_count <= 0)
-					BUG();	
-				return;
-			}			
-		}
-		if (req->epoch_link) {
+			//else if (req->epoch_link->el_epoch 
+			//			== next->epoch_link->el_epoch) {
+			//	req->epoch_link->el_epoch->pending--;
+			//	if (req->epoch_link->el_epoch->pending <= 0)
+			//		BUG();	
+			//	return;
+			//}			
 			req->epoch_link_tail->el_next = next->epoch_link;
 			req->epoch_link_tail = next->epoch_link_tail;
-		}
-		else {
+		} else {
 			req->epoch_link = next->epoch_link;
 			req->epoch_link_tail = next->epoch_link_tail;
 		}

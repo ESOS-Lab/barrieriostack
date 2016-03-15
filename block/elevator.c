@@ -376,19 +376,17 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 		link = rq->epoch_link;
 		while (link) {
 			epoch = link->el_epoch;
-			if (!epoch->req_count)
+			if (!epoch->pending)
 				BUG();
 			
-			epoch->req_count--;
-			if (epoch->req_count == 0 && epoch->barrier) {
+			epoch->pending--;
+			if (epoch->pending == 0 && epoch->barrier) {
 				rq->cmd_bflags |= REQ_BARRIER;
 				epoch->barrier = 0;
 				if (list_entry(epoch->list.prev, struct epoch, list) != epoch) {
 					list_del(&epoch->list);
 					mempool_free(epoch, q->epoch_pool);
 				}
-				else
-					BUG();
 			}
 			link = rq->epoch_link->el_next;
 			if (rq->epoch_link == rq->epoch_link_tail) 
@@ -675,28 +673,31 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 
 	case ELEVATOR_INSERT_SORT_MERGE:
 	
-		current_epoch = list_entry(q->epoch_list.prev, struct epoch, list);
-
+		//current_epoch = list_entry(q->epoch_list.prev, struct epoch, list);
+		current_epoch = current->epoch;
+		/* This request is enqueued first time  */
 		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
 			rq->epoch_link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
 			if (!rq->epoch_link)
 				BUG();
-			current_epoch->req_count++;
+			
+			current_epoch->pending++;
 			rq->epoch_link->el_epoch = current_epoch;
 			rq->epoch_link->el_next = NULL;
+		
+			if (rq->cmd_bflags & REQ_BARRIER)// && where != ELEVATOR_INSERT_REQUEUE) {
+			{
+				rq->cmd_bflags &= ~REQ_BARRIER;
+				current_epoch->barrier = 1;
+				blk_start_new_epoch(q);
+				//current_epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+				//INIT_LIST_HEAD(&current_epoch->list);
+				//current_epoch->req_count = 0;
+				//current_epoch->barrier = 0;
+				//list_add_tail(&current_epoch->list, &q->epoch_list);
+				//was_barrier = 1;
+			}
 		}
-		if (rq->cmd_bflags & REQ_BARRIER)// && where != ELEVATOR_INSERT_REQUEUE) {
-		{
-			rq->cmd_bflags &= ~REQ_BARRIER;
-			current_epoch->barrier = 1;
-			current_epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
-			INIT_LIST_HEAD(&current_epoch->list);
-			current_epoch->req_count = 0;
-			current_epoch->barrier = 0;
-			list_add_tail(&current_epoch->list, &q->epoch_list);
-			//was_barrier = 1;
-		}
-
 		/*
 		 * If we succeed in merging this request with one in the
 		 * queue already, we are done - rq has now been freed,

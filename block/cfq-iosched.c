@@ -3300,6 +3300,19 @@ static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	if (!rq)
 		rq = cfqq->next_rq;
 
+	/* 
+	 * UFS: when this request is attached with post-barrier,
+	 * we cannot dispatch this until previous requests are
+	 * completely issued into the device.
+	 */
+	/*
+	if (rq->cmd_bflags & REQ_BARRIER) {
+	  for_each(rq->epoch_link) {
+	    if (rq->epoch_link->el_epoch->pending == 1 && in_flight != 0)
+	      return false;
+	  }
+	}
+	*/
 	/*
 	 * insert request into driver dispatch list
 	 */

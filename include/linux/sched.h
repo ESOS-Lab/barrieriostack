@@ -1066,6 +1066,30 @@ enum perf_event_task_context {
 	perf_sw_context,
 	perf_nr_task_contexts,
 };
+/* UFS */
+//struct epoch_root;
+struct epoch {
+	//struct epoch_root *epoch_root;
+	struct task_struct *task;
+	struct request_queue *q;
+
+	unsigned int barrier;
+
+	unsigned int pending;
+	unsigned int dispatch;
+	unsigned int complete;
+	unsigned int error;
+	unsigned int error_flag;
+
+	struct list_head list;
+}
+//struct epoch_root {
+//	spinlock_t lock;
+//	struct radix_tree_root epoch_tree;
+	//struct hlist_head	
+	//struct epoch *epoch;
+	
+//}
 
 struct task_struct {
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
@@ -1460,6 +1484,17 @@ struct task_struct {
 #endif
 #ifdef CONFIG_SDP
 	unsigned int sensitive;
+#endif
+	
+	/* UFS */
+#ifdef 1
+	struct epoch* epoch;
+	unsigned int barrier_fail;
+	unsigned int epoch_fail;
+	//struct epoch* epoch;		/* Active epoch pointer */
+	struct list_head epoch_pending;	/* Issued epoch list */
+	struct list_head epoch_complete;/* Completed epoch list */
+	struct list_head epoch_error;	/* epoch lists with error */
 #endif
 };
 

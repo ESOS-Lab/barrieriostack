@@ -92,13 +92,24 @@ enum rq_cmd_type_bits {
 /*
  * UFS
  */
+/*
 struct epoch {
-	unsigned int req_count;
-	int barrier;
-	struct list_head list;
-};
+	struct task_struct *task;
+	struct request_queue *q;
 
+	unsigned int req_count;
+	unsigned int dispatched;
+	unsigned int completed;
+
+	int barrier;
+	int error;
+	
+	struct list_head list;
+	struct list_head ll;
+};
+*/
 struct epoch_link {
+//	struct request_queue *q;
 	struct epoch *el_epoch;
 	struct epoch_link *el_next;
 };
@@ -213,6 +224,7 @@ struct request {
 	/* UFS: for barrier */
 	struct epoch_link *epoch_link;
 	struct epoch_link *epoch_link_tail;
+	struct list_head epoch_req_list;
 };
 
 static inline unsigned short req_get_ioprio(struct request *req)

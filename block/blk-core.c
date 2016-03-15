@@ -740,7 +740,7 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 	INIT_LIST_HEAD(&q->epoch_list);
 	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
 	epoch->barrier = 0;
-	epoch->req_count = 0;
+	epoch->pending = 0;
 
 	INIT_LIST_HEAD(&epoch->list);
 	list_add_tail(&epoch->list, &q->epoch_list);
@@ -1385,13 +1385,17 @@ static inline void bio_epoch_merge(struct request_queue *q, struct request *req,
 				struct bio *bio)
 {
 	if (bio->bi_rw & REQ_ORDERED) {
-		struct epoch* epoch = list_entry(q->epoch_list.prev, 
-						struct epoch, list);
+	  //struct epoch* epoch = list_entry(q->epoch_list.prev, 
+	  //					struct epoch, list);
+		struct epoch* epoch = current->epoch;
+		if (!epoch) {
+
+		}
 		if (!req->epoch_link || 
 			(req->epoch_link && epoch != req->epoch_link->el_epoch)) {
 			struct epoch_link *link;
 
-			epoch->req_count++;
+			epoch->pending++;
 
 			link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
 			link->el_epoch = epoch;
@@ -1524,6 +1528,14 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
 
+	/* 
+	 * UFS
+	 */
+	if (bio->bi_rw & REQ_ORDERED)
+		req->cmd_bflags |= REQ_ORDERED;
+	if (bio->bi_rw & REQ_BARRIER)
+		req->cmd_bflags |= REQ_BARRIER;
+
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
 	req->ioprio = bio_prio(bio);
@@ -1555,6 +1567,24 @@ void blk_queue_bio(struct request_queue *q, struct bio *bio)
 		where = ELEVATOR_INSERT_FLUSH;
 		goto get_rq;
 	}
+
+	/* UFS */
+	/*
+	if (bio->bi_rw & REQ_ORDERED || bio->bi_rw & REQ_BARRIER) {
+		if (!current->epoch)
+			epoch_alloc(current, q);
+		else {
+			if (current->epoch->barrier == 1) {
+				if (current->q == q) {
+					
+				}
+			}
+			if (current->epoch->error) {
+
+			}			
+		}
+	}
+	*/
 
 	/*
 	 * Check if we can merge with the plugged list before grabbing
@@ -3111,13 +3141,25 @@ EXPORT_SYMBOL(blk_check_plugged);
 /* UFS */
 void blk_start_new_epoch(struct request_queue *q)
 {
-	struct epoch *epoch;
-	epoch = list_entry(q->epoch_list.prev, struct epoch, list);
+	struct epoch *epoch = current->epoch;
+	//epoch = list_entry(q->epoch_list.prev, struct epoch, list);
+	if (epoch->barrier == 0) {
+		//epoch->barrier = 0;
+		return;
+	}
+	//list_add_tail(&epoch->list, &current->epoch_pending);
 	epoch->barrier = 1;
 	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+	epoch->task = current;
+	epoch->q = q;
 	epoch->barrier = 0;
-	epoch->req_count = 0;
-	list_add_tail(&epoch->list, &q->epoch_list);
+	epoch->pending = 0;
+	epoch->complete = 0;
+	epoch->error = 0;
+	epoch->error_flag = 0;
+
+	current->epoch = epoch;
+	//LIST_INIT(&epoch->list);
 }
 
 
@@ -3159,9 +3201,13 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 			 */
 			if (q) {
 				if (barrier) {
-					blk_start_new_epoch(q);
+					//blk_start_new_epoch(q);
+					current->epoch->barrier = 1;
 					barrier = 0;
 				}
+				//else if (from_schedule) {
+					
+				//}
 				queue_unplugged(q, depth, from_schedule);
 			}
 			q = rq->q;
@@ -3201,7 +3247,8 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	 */
 	if (q) {
 		if (barrier)
-			blk_start_new_epoch(q);
+			current->epoch->barrier = 1;
+			//blk_start_new_epoch(q);
 		queue_unplugged(q, depth, from_schedule);
 	}
 	local_irq_restore(flags);
@@ -3221,13 +3268,64 @@ EXPORT_SYMBOL(blk_finish_plug);
  */
 void blk_issue_barrier_plug(struct blk_plug *plug)
 {
-	struct request *req;
-	if (list_empty(&plug->list))
-			return;
-	req = list_entry_rq(plug->list.prev);
+	struct request *rq;
+	//if (current->epoch->pending > 0)
+	//	current->epoch->barrier = 1;
+	//else
+	//	current->barrier_fail = 1;
+	return; 
+
+	if (list_empty(&plug->list)) {
+		/*
+		 * UFS: When this happens, WB_BARRIER_ALL has not properly
+		 * atached REQ_BARRIER flags.
+		 */
+		//blk_start_new_epoch(q);
+		current->barrier_fail = 1;
+		return;
+	}
+	rq = list_entry_rq(plug->list.prev);
 	
-	req->cmd_bflags |= REQ_BARRIER;
+	rq->cmd_bflags |= REQ_BARRIER;
 }
+
+struct epoch* blk_epoch_alloc(struct task_struct *task, struct request_queue *q) {
+	struct epoch* epoch;
+	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+
+	epoch->task = task;
+	epoch->q = q;
+
+	epoch->pending = 0;
+	epoch->dispatch = 0;
+	epoch->complete = 0;
+	
+	int barrier = 0;
+	int error = 0;
+
+	struct list_head list;
+	struct list_head ll;
+
+	task->epoch = epoch;
+	//list_add_tail();
+
+	//wait_queue;
+}
+void blk_epoch_free(struct epoch * epoch) {
+	struct request_queue q = epoch->q;
+	list_del(&epoch->list);
+	list_del(&epoch->ll);
+	mempool_free(q->epoch_pool);
+
+
+}
+void blk_epoch_issue(struct request *req) {
+
+}
+void blk_epoch_complete(struct request *req) {
+
+}
+
 EXPORT_SYMBOL(blk_issue_barrier_plug);
 
 #ifdef CONFIG_PM_RUNTIME
