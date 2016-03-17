@@ -415,7 +415,7 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 			//	if (req->epoch_link->el_epoch->pending <= 0)
 			//		BUG();	
 			//	return;
-			//}			
+			//}
 			req->epoch_link_tail->el_next = next->epoch_link;
 			req->epoch_link_tail = next->epoch_link_tail;
 		} else {

@@ -3287,6 +3287,8 @@ static bool cfq_may_dispatch(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 {
 	struct request *rq;
+	/* UFS */
+	struct epoch_link *el;
 
 	BUG_ON(RB_EMPTY_ROOT(&cfqq->sort_list));
 
@@ -3305,14 +3307,15 @@ static bool cfq_dispatch_request(struct cfq_data *cfqd, struct cfq_queue *cfqq)
 	 * we cannot dispatch this until previous requests are
 	 * completely issued into the device.
 	 */
-	/*
+	el = rq->epoch_link;
 	if (rq->cmd_bflags & REQ_BARRIER) {
-	  for_each(rq->epoch_link) {
-	    if (rq->epoch_link->el_epoch->pending == 1 && in_flight != 0)
-	      return false;
-	  }
+		while(el) {
+	  		if (el->el_epoch->pending == 1 && el->el_epoch->dispatch != 0)
+				return false;
+			el=el->el_next;
+		}
 	}
-	*/
+	
 	/*
 	 * insert request into driver dispatch list
 	 */

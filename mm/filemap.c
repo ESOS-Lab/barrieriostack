@@ -359,7 +359,7 @@ int filemap_fdatadispatch_range(struct address_space *mapping, loff_t start_byte
 	}
 out:
 	return ret;
-
+/* dummy */
 	ret2 = filemap_check_errors(mapping);
 	if (!ret)
 		ret = ret2;

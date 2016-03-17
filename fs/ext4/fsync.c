@@ -239,7 +239,9 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 		ret = ext4_force_commit(inode->i_sb);
 		goto out;
 	}
-
+	if (current->barrier_fail) {
+		datasync = 0;
+	}
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
 	//if (journal->j_flags & JBD2_BARRIER &&
 	//    !jbd2_trans_will_send_data_barrier(journal, commit_tid))

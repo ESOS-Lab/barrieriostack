@@ -1386,26 +1386,23 @@ static inline void bio_epoch_merge(struct request_queue *q, struct request *req,
 {
 	if (bio->bi_rw & REQ_ORDERED) {
 	  //struct epoch* epoch = list_entry(q->epoch_list.prev, 
-	  //					struct epoch, list);
+	  //				struct epoch, list);
 		struct epoch* epoch = current->epoch;
-		if (!epoch) {
-
+		struct epoch_link *link;
+		if (!epoch) 
+			BUG();
+		
+		link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+		link->el_epoch = epoch;
+		link->el_next = NULL;
+		epoch->pending++;
+		if (req->epoch_link) {
+			req->epoch_link_tail->el_next = link;
+			req->epoch_link_tail = link;
 		}
-		if (!req->epoch_link || 
-			(req->epoch_link && epoch != req->epoch_link->el_epoch)) {
-			struct epoch_link *link;
+		else
+			req->epoch_link = req->epoch_link_tail = link;
 
-			epoch->pending++;
-
-			link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
-			link->el_epoch = epoch;
-			link->el_next = NULL;
-			if (req->epoch_link) {
-				req->epoch_link_tail->el_next = link;
-			}
-			else
-				req->epoch_link = req->epoch_link_tail = link;
-		}	
 	}
 }
 
@@ -2377,14 +2374,15 @@ EXPORT_SYMBOL(blk_start_request);
 
 void blk_request_dispatched(struct request *req)
 {
+	struct bio *req_bio;
 	if (req->cmd_type != REQ_TYPE_FS)
 		return;
 	if (!(req->cmd_bflags & REQ_ORDERED))
 		return;
-
-	while (req->bio) {
+	req_bio = req->bio;
+	while (req_bio) {
 		int i;
-		struct bio *bio = req->bio;
+		struct bio *bio = req_bio;
 
 		if (!bio->bi_size)
 			break;
@@ -2414,7 +2412,7 @@ void blk_request_dispatched(struct request *req)
 
 			end_page_dispatch(page);
 		}
-		req->bio = bio->bi_next;
+		req_bio = bio->bi_next;
 	}
 }
 EXPORT_SYMBOL(blk_request_dispatched);
@@ -3161,7 +3159,7 @@ void blk_start_new_epoch(struct request_queue *q)
 	current->epoch = epoch;
 	//LIST_INIT(&epoch->list);
 }
-
+EXPORT_SYMBOL(blk_start_new_epoch);
 
 void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 {
@@ -3201,8 +3199,8 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 			 */
 			if (q) {
 				if (barrier) {
-					//blk_start_new_epoch(q);
-					current->epoch->barrier = 1;
+					blk_start_new_epoch(q);
+					//current->epoch->barrier = 1;
 					barrier = 0;
 				}
 				//else if (from_schedule) {
@@ -3247,8 +3245,8 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	 */
 	if (q) {
 		if (barrier)
-			current->epoch->barrier = 1;
-			//blk_start_new_epoch(q);
+			//current->epoch->barrier = 1;
+			blk_start_new_epoch(q);
 		queue_unplugged(q, depth, from_schedule);
 	}
 	local_irq_restore(flags);
@@ -3288,7 +3286,7 @@ void blk_issue_barrier_plug(struct blk_plug *plug)
 	
 	rq->cmd_bflags |= REQ_BARRIER;
 }
-
+/*
 struct epoch* blk_epoch_alloc(struct task_struct *task, struct request_queue *q) {
 	struct epoch* epoch;
 	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
@@ -3319,6 +3317,7 @@ void blk_epoch_free(struct epoch * epoch) {
 
 
 }
+*/
 void blk_epoch_issue(struct request *req) {
 
 }

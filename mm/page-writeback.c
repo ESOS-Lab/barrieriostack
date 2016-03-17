@@ -1758,12 +1758,16 @@ int write_cache_pages(struct address_space *mapping,
 			range_whole = 1;
 		cycled = 1; /* ignore range_cyclic tests */
 	}
-	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
+	/* UFS  */
+	if (wbc->sync_mode == WB_SYNC_ALL || wbc->sync_mode == WB_ORDERED_ALL ||
+		wbc->sync_mode == WB_BARRIER_ALL || wbc->tagged_writepages)
 		tag = PAGECACHE_TAG_TOWRITE;
 	else
 		tag = PAGECACHE_TAG_DIRTY;
 retry:
-	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
+	/* UFS */
+	if (wbc->sync_mode == WB_SYNC_ALL || wbc->sync_mode == WB_ORDERED_ALL ||
+		wbc->sync_mode == WB_BARRIER_ALL || wbc->tagged_writepages)
 		tag_pages_for_writeback(mapping, index, end);
 	done_index = index;
 	while (!done && (index <= end)) {
@@ -1824,12 +1828,12 @@ continue_unlock:
 			}
 
 			if (PageWriteback(page)) {
-				if (wbc->sync_mode != WB_SYNC_NONE)
-					wait_on_page_writeback(page);
+			  //if (wbc->sync_mode != WB_SYNC_NONE)
+			  //		wait_on_page_writeback(page);
 				/* 
 				 * UFS: Should we wait? 
 				 */
-				else if (wbc->sync_mode == WB_BARRIER_ALL)
+				if (wbc->sync_mode == WB_BARRIER_ALL || wbc->sync_mode == WB_ORDERED_ALL)
 				{
 					//if (i==nr_pages-1) {
 					//	wait_on_page_writeback(page);
@@ -1837,17 +1841,19 @@ continue_unlock:
 					//}
 					//else {
 					
-						/* UFS
-						 * may async or non ordered
-						 * So, we wait until dispatch
-						 * Note that barrier will not
-						 * preceed this.
-						 */
-						wait_on_page_dispatch(page);
-						goto continue_unlock;
+					/* UFS
+					 * may async or non ordered
+					 * So, we wait until dispatch
+					 * Note that barrier will not
+					 * preceed this.
+					 */
+					wait_on_page_dispatch(page);
+					goto continue_unlock;
 					//}
 					//if(!PageDispatch(page))
 				}
+				if (wbc->sync_mode != WB_SYNC_NONE)
+					wait_on_page_writeback(page);
 				else
 					goto continue_unlock;
 			}
@@ -1950,8 +1956,13 @@ int generic_writepages(struct address_space *mapping,
 
 	blk_start_plug(&plug);
 	ret = write_cache_pages(mapping, wbc, __writepage, mapping);
-	if (wbc->sync_mode == WB_BARRIER_ALL)
+	/* UFS */
+	if (wbc->sync_mode == WB_BARRIER_ALL) {
 		blk_issue_barrier_plug(&plug);
+		//if failed
+		//mapping->a_ops->writepage(page, wbc);
+		//mapping->backing_dev_info->dev
+	}
 	blk_finish_plug(&plug);
 	return ret;
 }

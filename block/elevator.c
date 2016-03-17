@@ -380,13 +380,14 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 				BUG();
 			
 			epoch->pending--;
+			epoch->dispatch++;
 			if (epoch->pending == 0 && epoch->barrier) {
 				rq->cmd_bflags |= REQ_BARRIER;
-				epoch->barrier = 0;
-				if (list_entry(epoch->list.prev, struct epoch, list) != epoch) {
-					list_del(&epoch->list);
-					mempool_free(epoch, q->epoch_pool);
-				}
+				//epoch->barrier = 0;
+				//if (list_entry(epoch->list.prev, struct epoch, list) != epoch) {
+				//	list_del(&epoch->list);
+				mempool_free(epoch, q->epoch_pool);
+				//}
 			}
 			link = rq->epoch_link->el_next;
 			if (rq->epoch_link == rq->epoch_link_tail) 
@@ -672,7 +673,7 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		break;
 
 	case ELEVATOR_INSERT_SORT_MERGE:
-	
+		/* UFS */	
 		//current_epoch = list_entry(q->epoch_list.prev, struct epoch, list);
 		current_epoch = current->epoch;
 		/* This request is enqueued first time  */
@@ -688,7 +689,7 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 			if (rq->cmd_bflags & REQ_BARRIER)// && where != ELEVATOR_INSERT_REQUEUE) {
 			{
 				rq->cmd_bflags &= ~REQ_BARRIER;
-				current_epoch->barrier = 1;
+				//current_epoch->barrier = 1;
 				blk_start_new_epoch(q);
 				//current_epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
 				//INIT_LIST_HEAD(&current_epoch->list);
