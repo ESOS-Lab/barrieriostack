@@ -363,6 +363,8 @@ int test_set_page_writeback(struct page *page);
 static inline void set_page_writeback(struct page *page)
 {
 	test_set_page_writeback(page);
+	/* UFS: dispatch */
+	SetPageDispatch(page);
 }
 
 #ifdef CONFIG_PAGEFLAGS_EXTENDED

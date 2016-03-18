@@ -1048,7 +1048,8 @@ void jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block);
 extern void jbd2_journal_commit_transaction(journal_t *);
 
 /* UFS: Checkpoint list management thread */
-extern void jbd2_journal_cpsetup_transaction(journal_t *journal);
+extern void jbd2_journal_barrier_commit_transaction(journal_t *);
+extern void jbd2_journal_cpsetup_transaction(journal_t *);
 
 /* Checkpoint list management */
 int __jbd2_journal_clean_checkpoint_list(journal_t *journal);

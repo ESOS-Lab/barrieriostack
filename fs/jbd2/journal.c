@@ -201,7 +201,9 @@ loop:
 		jbd_debug(1, "OK, requests differ\n");
 		write_unlock(&journal->j_state_lock);
 		del_timer_sync(&journal->j_commit_timer);
-		jbd2_journal_commit_transaction(journal);
+		//jbd2_journal_commit_transaction(journal);
+		/* UFS */
+		jbd2_journal_barrier_commit_transaction(journal);
 		write_lock(&journal->j_state_lock);
 		goto loop;
 	}
@@ -286,6 +288,8 @@ loop:
 
 	if (journal->j_cpsetup_transactions) {
 		//write_unlock(&journal->j_state_lock);
+		//if (journal->j_cpsetup_sequence < journal->j_commit_sequence)
+		//	;
 		jbd2_journal_cpsetup_transaction(journal);
 		//write_lock(&journal->j_state_lock);
 		goto loop;
@@ -304,6 +308,8 @@ loop:
 		prepare_to_wait(&journal->j_wait_cpsetup, &wait,
 				TASK_INTERRUPTIBLE);
 		if (journal->j_cpsetup_transactions)//j_commit_sequence != journal->j_commit_reqeust)
+			should_sleep = 0;
+		if (journal->j_cpsetup_sequence != journal->j_commit_sequence)
 			should_sleep = 0;
 		//transaction = journal->j_running_transaction;
 		//if (transaction && time_after_eq(jiffies,

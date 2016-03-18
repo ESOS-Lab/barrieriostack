@@ -331,7 +331,14 @@ static int io_submit_init(struct ext4_io_submit *io,
 	io_end->offset = (page->index << PAGE_CACHE_SHIFT) + bh_offset(bh);
 
 	io->io_bio = bio;
-	io->io_op = (wbc->sync_mode == WB_SYNC_ALL ?  WRITE_SYNC : WRITE);
+	/*
+	 * UFS:
+	 */
+	if (wbc->sync_mode == WB_ORDERED_ALL || wbc->sync_mode == WB_BARRIER_ALL)
+		io->io_op = WRITE_ORDERED;
+	else
+		io->io_op = (wbc->sync_mode == WB_SYNC_ALL ?  WRITE_SYNC : WRITE);
+	 
 	io->io_next_block = bh->b_blocknr;
 	return 0;
 }

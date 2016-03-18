@@ -1059,6 +1059,7 @@ extern void blk_flush_plug_list(struct blk_plug *, bool);
 /* UFS */
 extern void blk_issue_barrier_plug(struct blk_plug *);
 extern void blk_request_dispatched(struct request *req);
+extern void blk_start_new_epoch(struct request_queue *q);
 
 static inline void blk_flush_plug(struct task_struct *tsk)
 {

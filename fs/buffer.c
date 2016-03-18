@@ -3120,6 +3120,9 @@ int _submit_bh_64flags(long long rw, struct buffer_head *bh, unsigned long long 
 	}
 
 	bio_get(bio);
+	/* UFS */ 
+	test_set_buffer_dispatch(bh);
+
 	submit_bio_64flags(rw, bio);
 
 	if (bio_flagged(bio, BIO_EOPNOTSUPP))

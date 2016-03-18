@@ -1082,7 +1082,7 @@ struct epoch {
 	unsigned int error_flag;
 
 	struct list_head list;
-}
+};
 //struct epoch_root {
 //	spinlock_t lock;
 //	struct radix_tree_root epoch_tree;
@@ -1487,7 +1487,7 @@ struct task_struct {
 #endif
 	
 	/* UFS */
-#ifdef 1
+//#ifdef 1
 	struct epoch* epoch;
 	unsigned int barrier_fail;
 	unsigned int epoch_fail;
@@ -1495,7 +1495,7 @@ struct task_struct {
 	struct list_head epoch_pending;	/* Issued epoch list */
 	struct list_head epoch_complete;/* Completed epoch list */
 	struct list_head epoch_error;	/* epoch lists with error */
-#endif
+//#endif
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
