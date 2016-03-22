@@ -63,6 +63,22 @@ struct fs_struct;
 struct perf_event_context;
 struct blk_plug;
 
+/* UFS: epoch structure */
+struct epoch {
+	struct task_struct *task;
+	struct request_queue *q;
+	
+	unsigned int barrier;
+	
+	unsigned int pending;
+	unsigned int dispatch;
+	unsigned int complete;
+	unsigned int error;
+	unsigned int error_flags;
+
+	//struct list_head list;
+};
+
 /*
  * List of flags we want to share for kernel threads,
  * if only because they are not used by them anyway.
@@ -1461,6 +1477,14 @@ struct task_struct {
 #ifdef CONFIG_SDP
 	unsigned int sensitive;
 #endif
+	/* UFS: epoch structure for task */
+	struct epoch *epoch;
+	unsigned int barrier_fail;
+	//unsigned int epoch_fail;
+	//struct list_head epoch_pending;
+	//struct list_head epoch_dispatch;
+	//struct list_head epoch_complte;
+	//struct list_head epoch_error;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

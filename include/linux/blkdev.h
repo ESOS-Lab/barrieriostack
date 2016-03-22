@@ -35,6 +35,13 @@ struct sg_io_hdr;
 struct bsg_job;
 struct blkcg_gq;
 
+
+/* UFS: epoch link between requests and epoch */
+struct epoch_link {
+	struct epoch *el_epoch;
+	struct epoch_link *el_next;
+};
+
 #define BLKDEV_MIN_RQ	4
 #define BLKDEV_MAX_RQ	128	/* Default maximum */
 
@@ -195,6 +202,11 @@ struct request {
 
 	/* for bidi */
 	struct request *next_rq;
+
+	/* for UFS */
+	struct epoch_link *epoch_link;
+	struct epoch_link *epoch_link_tail;
+	//struct list_head epoch_req_list;
 };
 
 static inline unsigned short req_get_ioprio(struct request *req)
@@ -447,6 +459,10 @@ struct request_queue {
 	struct throtl_data *td;
 #endif
 	struct rcu_head		rcu_head;
+
+	/* UFS: for epoch allocation */
+	mempool_t *epoch_pool;
+	mempool_t *epoch_link_pool;
 };
 
 #define QUEUE_FLAG_QUEUED	1	/* uses generic tag queueing */
@@ -1057,6 +1073,12 @@ extern int blk_queue_resize_tags(struct request_queue *, int);
 extern void blk_queue_invalidate_tags(struct request_queue *);
 extern struct blk_queue_tag *blk_init_tags(int);
 extern void blk_free_tags(struct blk_queue_tag *);
+
+
+/* UFS blk function */
+extern void blk_issue_barrier_plug(struct blk_plug *);
+extern void blk_request_dispatched(struct request *req);
+extern void blk_start_new_epoch(struct request_queue *q);
 
 static inline struct request *blk_map_queue_find_tag(struct blk_queue_tag *bqt,
 						int tag)

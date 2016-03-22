@@ -352,8 +352,8 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 {
 	sector_t boundary;
 	struct list_head *entry;
-	int stop_flags;
-
+	//int stop_flags;
+	long long stop_flags; /* UFS modification to support REQ_BARRIER and REQ_ORDERED */
 	if (q->last_merge == rq)
 		q->last_merge = NULL;
 
@@ -363,6 +363,32 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 
 	boundary = q->end_sector;
 	stop_flags = REQ_SOFTBARRIER | REQ_STARTED;
+	/* UFS */
+	stop_flags = REQ_SOFTBARRIER | REQ_STARTED | REQ_BARRIER;
+	if (rq->cmd_bflags & REQ_ORDERED) {
+		struct epoch *epoch;
+		struct epoch_link *link;
+		if (!rq->epoch_link)
+			BUG();
+		link = rq->epoch_link;
+		while (link) {
+			epoch = link->el_epoch;
+			if (!epoch->pending)
+				BUG();
+			epoch->pending--;
+			epoch->dispatch++;
+			if (epoch->pending == 0 && epoch->barrier) {
+				rq->cmd_bflags |= REQ_BARRIER;
+				mempool_free(epoch, q->epoch_pool);
+			}
+			link = rq->epoch_link->el_next;
+			/* ? */
+			if (rq->epoch_link == rq->epoch_link_tail)
+				rq->epoch_link_tail = link;
+			mempool_free(rq->epoch_link, q->epoch_link_pool);
+			rq->epoch_link = link;
+		}
+	}
 	list_for_each_prev(entry, &q->queue_head) {
 		struct request *pos = list_entry_rq(entry);
 
@@ -381,6 +407,9 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 				break;
 		}
 		if (blk_rq_pos(rq) >= blk_rq_pos(pos))
+			break;
+		/* UFS */
+		if (rq->cmd_bflags & REQ_BARRIER)
 			break;
 	}
 
