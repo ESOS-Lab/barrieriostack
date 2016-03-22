@@ -119,6 +119,9 @@ enum pageflags {
 #ifdef CONFIG_SDP
 	PG_sensitive,
 #endif
+
+	PG_dispatch,		/* UFS: page dispatch*/
+
 	__NR_PAGEFLAGS,
 
 	/* Filesystems */
@@ -242,6 +245,8 @@ PAGEFLAG(MappedToDisk, mappedtodisk)
 PAGEFLAG(Reclaim, reclaim) TESTCLEARFLAG(Reclaim, reclaim)
 PAGEFLAG(Readahead, reclaim)		/* Reminder to do async read-ahead */
 
+/* UFS: page dispatch functions */
+PAGEFLAG(Dispatch, dispatch) TESTSCFLAG(Dispatch, dispatch)
 #ifdef CONFIG_HIGHMEM
 /*
  * Must use a macro here due to header dependency issues. page_zone() is not
@@ -355,6 +360,8 @@ int test_set_page_writeback(struct page *page);
 static inline void set_page_writeback(struct page *page)
 {
 	test_set_page_writeback(page);
+	/* UFS: dispatch */
+	SetPageDispatch(page);
 }
 
 #ifdef CONFIG_PAGEFLAGS_EXTENDED

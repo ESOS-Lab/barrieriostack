@@ -326,7 +326,7 @@
 317	common	seccomp			sys_seccomp
 # UFS project add for fbarrier system call
 384	common	fbarrier		sys_fbarrier
-
+385	common	fdatabarrier		sys_fdatabarrier
 
 #
 # x32-specific system call numbers start at 512 to avoid cache impact

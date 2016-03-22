@@ -38,7 +38,8 @@ struct bio {
 	struct bio		*bi_next;	/* request queue link */
 	struct block_device	*bi_bdev;
 	unsigned long		bi_flags;	/* status, command, etc */
-	unsigned long		bi_rw;		/* bottom bits READ/WRITE,
+	unsigned long long	bi_rw;		/* UFS */
+	/*unsigned long		bi_rw;*/		/* bottom bits READ/WRITE,
 						 * top bits priority
 						 */
 
@@ -184,7 +185,8 @@ enum rq_flag_bits {
 	__REQ_NR_BITS,		/* stops here */
 
 	/* UFS project flag */
-	__REQ_BARRIER,		/* */
+	__REQ_ORDERED,		/* UFS: req for ordering guarantee */
+	__REQ_BARRIER,		/* UFS: post barrier flags*/
 };
 
 #define REQ_WRITE		(1 << __REQ_WRITE)
@@ -236,6 +238,7 @@ enum rq_flag_bits {
 #define REQ_KERNEL		(1 << __REQ_KERNEL)
 #define REQ_PM			(1 << __REQ_PM)
 // UFS project 
-#define REQ_BARRIER		(1 << __REQ_BARRIER)
+#define REQ_ORDERED		(1ULL << __REQ_ORDERED)
+#define REQ_BARRIER		(1ULL << __REQ_BARRIER)
 
 #endif /* __LINUX_BLK_TYPES_H */

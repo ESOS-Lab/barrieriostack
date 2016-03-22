@@ -37,6 +37,8 @@ enum bh_state_bits {
 	BH_Meta,	/* Buffer contains metadata */
 	BH_Prio,	/* Buffer should be submitted with REQ_PRIO */
 	BH_Sync_Flush,
+	
+	BH_Dispatch,	/* UFS: Buffer dispatched */
 
 	BH_PrivateStart,/* not a state bit, but the first bit available
 			 * for private allocation by other entities
@@ -130,6 +132,10 @@ BUFFER_FNS(Unwritten, unwritten)
 BUFFER_FNS(Meta, meta)
 BUFFER_FNS(Prio, prio)
 BUFFER_FNS(Sync_Flush, sync_flush)
+
+/* UFS: FNS for Dispatch */
+BUFFER_FNS(Dispatch, dispatch)
+TAS_BUFFER_FNS(Dispatch, dispatch)
 
 #define bh_offset(bh)		((unsigned long)(bh)->b_data & ~PAGE_MASK)
 
@@ -345,6 +351,25 @@ static inline void lock_buffer(struct buffer_head *bh)
 }
 
 extern int __set_page_dirty_buffers(struct page *page);
+
+
+/* UFS: Buffer head */
+void __wait_on_buffer_dispatch(struct buffer_head *bh);
+
+static inline void wait_on_buffer_dispatch(struct buffer_head *bh)
+{
+	if (buffer_dispatch(bh))
+		__wait_on_buffer_dispatch(bh);
+}
+
+static inline void wake_up_buffer_dispatch(struct buffer_head *bh)
+{
+	if (test_clear_buffer_dispatch(bh)) {
+		smp_mb__after_clear_bit();
+		wake_up_bit(&bh->b_state, BH_Dispatch);
+	}
+}
+
 
 #else /* CONFIG_BLOCK */
 

@@ -256,8 +256,12 @@ SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
 // UFS project add
 SYSCALL_DEFINE1(fbarrier, unsigned int, fd)
 {
-	printk("in SYSCALL_DEFINE1(fbarrier)\n");
+	//printk("in SYSCALL_DEFINE1(fbarrier)\n");
 	return do_fbarrier(fd, 0);
+}
+SYSCALL_DEFINE1(fdatabarrier, unsigned int, fd)
+{
+	return do_fbarrier(fd, 1);
 }
 
 /**

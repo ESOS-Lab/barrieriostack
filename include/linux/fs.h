@@ -196,7 +196,8 @@ typedef void (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 #define WRITE_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FUA)
 #define WRITE_FLUSH_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FLUSH | REQ_FUA)
 // UFS project
-#define WRITE_BARRIER		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_BARRIER)
+#define WRITE_ORDERED		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_ORDERED)
+#define WRITE_BARRIER		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_ORDERED | REQ_BARRIER)
 
 /*
  * Attribute flags.  These should be or-ed together to figure out what

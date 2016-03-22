@@ -3412,6 +3412,14 @@ int bh_submit_read(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(bh_submit_read);
 
+
+/* UFS */
+void __wait_on_buffer_dispatch(struct buffer_head *bh)
+{
+	wait_on_bit(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
+}
+EXPORT_SYMBOL(__wait_on_buffer_dispatch);
+
 void __init buffer_init(void)
 {
 	unsigned long nrpages;

@@ -624,10 +624,26 @@ void end_page_writeback(struct page *page)
 	if (!test_clear_page_writeback(page))
 		BUG();
 
+	
 	smp_mb__after_clear_bit();
+	/* UFS: check the dispatch bit */
+	if (TestClearPageDispatch(page)) {
+		wake_up_page(page, PG_dispatch);
+	}
+
 	wake_up_page(page, PG_writeback);
 }
 EXPORT_SYMBOL(end_page_writeback);
+
+/* UFS */
+void end_page_dispatch(struct page *page)
+{
+	if (TestClearPageDispatch(page)) {
+		smp_mb__after_clear_bit();
+		wake_up_page(page, PG_dispatch);
+	}
+}
+EXPORT_SYMBOL(end_page_dispatch);
 
 /**
  * __lock_page - get a lock on the page, assuming we need to sleep to get it

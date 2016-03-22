@@ -414,6 +414,7 @@
 #define __NR_seccomp			(__NR_SYSCALL_BASE+383)
 //UFS project
 #define __NR_fbarrier			(__NR_SYSCALL_BASE+384)
+#define __NR_fdatabarrier		(__NR_SYSCALL_BASE+385)
 /*
  * This may need to be greater than __NR_last_syscall+1 in order to
  * account for the padding in the syscall table
