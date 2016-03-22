@@ -717,6 +717,8 @@ void end_page_writeback(struct page *page)
 		BUG();
 
 	smp_mb__after_clear_bit();
+	if (TestClearPageDispatch(page))
+		wake_up_page(page, PG_dispatch);
 	wake_up_page(page, PG_writeback);
 }
 EXPORT_SYMBOL(end_page_writeback);

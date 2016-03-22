@@ -128,7 +128,7 @@ static inline struct task_struct *alloc_task_struct_node(int node)
 	struct task_struct *p;
 	p = kmem_cache_alloc_node(task_struct_cachep, GFP_KERNEL, node);
 	p->epoch = 0;
-	p->barrier_tail = 0;
+	p->barrier_fail = 0;
 	p->epoch_fail = 0;
 	//LIST_HEAD_INIT(&p->epoch_pending);
 	//LIST_HEAD_INIT(&p->epoch_complete);
