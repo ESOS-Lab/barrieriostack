@@ -3267,11 +3267,12 @@ EXPORT_SYMBOL(blk_finish_plug);
 void blk_issue_barrier_plug(struct blk_plug *plug)
 {
 	struct request *rq;
+	
 	//if (current->epoch->pending > 0)
 	//	current->epoch->barrier = 1;
 	//else
 	//	current->barrier_fail = 1;
-	return; 
+	//return; 
 
 	if (list_empty(&plug->list)) {
 		/*
@@ -3283,8 +3284,11 @@ void blk_issue_barrier_plug(struct blk_plug *plug)
 		return;
 	}
 	rq = list_entry_rq(plug->list.prev);
-	
-	rq->cmd_bflags |= REQ_BARRIER;
+	if (rq->cmd_bflags & REQ_ORDERED) {
+	  if (!(rq->cmd_bflags & REQ_BARRIER))
+	    rq->cmd_bflags |= REQ_BARRIER;
+	  current->barrier_fail = 0;
+	}
 }
 /*
 struct epoch* blk_epoch_alloc(struct task_struct *task, struct request_queue *q) {

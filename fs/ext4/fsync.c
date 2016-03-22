@@ -240,6 +240,7 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 		goto out;
 	}
 	if (current->barrier_fail) {
+	  current->barrier_fail = 0;
 		datasync = 0;
 	}
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;

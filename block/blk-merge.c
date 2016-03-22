@@ -402,7 +402,7 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 			struct request *next)
 {
 	if (next->cmd_bflags & REQ_ORDERED) {
-		if (next->epoch_link) {
+		if (!next->epoch_link) {
 			BUG();
 		}
 

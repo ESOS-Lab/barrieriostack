@@ -1956,6 +1956,7 @@ int generic_writepages(struct address_space *mapping,
 
 	blk_start_plug(&plug);
 	ret = write_cache_pages(mapping, wbc, __writepage, mapping);
+	//blk_finish_plug(&plug);
 	/* UFS */
 	if (wbc->sync_mode == WB_BARRIER_ALL) {
 		blk_issue_barrier_plug(&plug);

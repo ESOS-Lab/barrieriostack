@@ -387,6 +387,7 @@ static void journal_kill_cpthread(journal_t *journal)
 		wake_up(&journal->j_wait_cpsetup);
 		write_unlock(&journal->j_state_lock);
 		wait_event(journal->j_wait_done_cpsetup, journal->j_cptask == NULL);
+		write_lock(&journal->j_state_lock);
 	}
 	write_unlock(&journal->j_state_lock);
 }
