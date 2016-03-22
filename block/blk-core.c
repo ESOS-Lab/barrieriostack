@@ -1416,6 +1416,8 @@ static bool bio_attempt_back_merge(struct request_queue *q, struct request *req,
 
 	if ((req->cmd_flags & REQ_FAILFAST_MASK) != ff)
 		blk_rq_set_mixed_merge(req);
+	/* UFS */
+	bio_epoch_merge(q, req, bio);
 
 	req->biotail->bi_next = bio;
 	req->biotail = bio;
@@ -1439,6 +1441,9 @@ static bool bio_attempt_front_merge(struct request_queue *q,
 	if ((req->cmd_flags & REQ_FAILFAST_MASK) != ff)
 		blk_rq_set_mixed_merge(req);
 
+	/* UFS */
+	bio_epoch_merge(q, req, bio);
+	
 	bio->bi_next = req->bio;
 	req->bio = bio;
 

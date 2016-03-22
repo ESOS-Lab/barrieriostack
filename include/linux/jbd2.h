@@ -788,6 +788,10 @@ struct journal_s
 	 */
 	transaction_t		*j_checkpoint_transactions;
 
+
+	/* UFS */
+	transaction_t		*j_cpsetup_transactions;	
+
 	/*
 	 * Wait queue for waiting for a locked transaction to start committing,
 	 * or for a barrier lock to be released
@@ -808,6 +812,11 @@ struct journal_s
 
 	/* Wait queue to wait for updates to complete */
 	wait_queue_head_t	j_wait_updates;
+	
+	/* UFS: Wait queue to trigger checkpoint list setup */
+	wait_queue_head_t	j_wait_cpsetup;
+	/* UFS: Wait queue for wating for checkpoint list setup to complete */
+	wait_queue_head_t	j_wait_done_cpsetup;
 
 	/* Semaphore for locking against concurrent checkpoints */
 	struct mutex		j_checkpoint_mutex;
@@ -895,6 +904,11 @@ struct journal_s
 	 */
 	tid_t			j_commit_request;
 
+
+	/* UFS */
+	tid_t			j_cpsetup_sequence;
+	tid_t			j_cpsetup_request;
+
 	/*
 	 * Journal uuid: identifies the object (filesystem, LVM volume etc)
 	 * backed by this journal.  This will eventually be replaced by an array
@@ -905,6 +919,9 @@ struct journal_s
 
 	/* Pointer to the current commit thread for this journal */
 	struct task_struct	*j_task;
+	
+	/* UFS: pinter to the current cpsetup thread for this journal */
+	struct task_struct	*j_cptask;
 
 	/*
 	 * Maximum number of metadata buffers to allow in a single compound

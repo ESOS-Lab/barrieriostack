@@ -475,6 +475,9 @@ static int attempt_merge(struct request_queue *q, struct request *req,
 	if (time_after(req->start_time, next->start_time))
 		req->start_time = next->start_time;
 
+	/* UFS */
+	request_epoch_merge(q, req, next);
+
 	req->biotail->bi_next = next->bio;
 	req->biotail = next->biotail;
 

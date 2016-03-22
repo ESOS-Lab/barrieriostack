@@ -264,6 +264,20 @@ end_loop:
 	return 0;
 }
 
+/* UFS */
+static int kjournald2cp(void *arg)
+{
+	journal_t *journal = arg;
+
+	journal->j_cptask = current;
+	wake_up(&journal->j_wait_done_cpsetup);
+//loop:
+
+//end_loop:
+	journal->j_cptask = NULL;
+	wake_up(&journal->j_wait_done_cpsetup);
+	return 0;
+}
 static int jbd2_journal_start_thread(journal_t *journal)
 {
 	struct task_struct *t;
@@ -291,6 +305,32 @@ static void journal_kill_thread(journal_t *journal)
 	write_unlock(&journal->j_state_lock);
 }
 
+/* UFS */
+static int jbd2_journal_start_cpthread(journal_t *journal)
+{
+	struct task_struct *t;
+	
+	t = kthread_run(kjournald2cp, journal, "jbd2cp/%s",
+			journal->j_devname);
+	if (IS_ERR(t))
+		return PTR_ERR(t);
+	
+	wait_event(journal->j_wait_done_cpsetup, journal->j_cptask != NULL);
+	return 0;
+}
+static void journal_kill_cpthread(journal_t *journal)
+{
+	write_lock(&journal->j_state_lock);
+	journal->j_flags |= JBD2_UNMOUNT;
+	
+	while (journal->j_cptask) {
+		wake_up(&journal->j_wait_cpsetup);
+		write_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup, journal->j_cptask == NULL);
+		write_lock(&journal->j_state_lock);
+	}
+	write_unlock(&journal->j_state_lock);
+}
 /*
  * jbd2_journal_write_metadata_buffer: write a metadata buffer to the journal.
  *
@@ -1061,6 +1101,10 @@ static journal_t * journal_init_common (void)
 	init_waitqueue_head(&journal->j_wait_checkpoint);
 	init_waitqueue_head(&journal->j_wait_commit);
 	init_waitqueue_head(&journal->j_wait_updates);
+	/* UFS */
+	init_waitqueue_head(&journal->j_wait_cpsetup);
+	init_waitqueue_head(&journal->j_wait_done_cpsetup);
+
 	mutex_init(&journal->j_barrier);
 	mutex_init(&journal->j_checkpoint_mutex);
 	spin_lock_init(&journal->j_revoke_lock);
@@ -1254,6 +1298,7 @@ static void journal_fail_superblock (journal_t *journal)
 
 static int journal_reset(journal_t *journal)
 {
+	int ret; //UFS
 	journal_superblock_t *sb = journal->j_superblock;
 	unsigned long long first, last;
 
@@ -1306,7 +1351,12 @@ static int journal_reset(journal_t *journal)
 						WRITE_FUA);
 		mutex_unlock(&journal->j_checkpoint_mutex);
 	}
-	return jbd2_journal_start_thread(journal);
+	/* UFS */
+	//return jbd2_journal_start_thread(journal);
+	ret = jbd2_journal_start_thread(journal);
+	if (!ret)
+		ret = jbd2_journal_start_cpthread(journal);
+	return ret;
 }
 
 static void jbd2_write_superblock(journal_t *journal, int write_op)
@@ -1650,6 +1700,8 @@ int jbd2_journal_destroy(journal_t *journal)
 
 	/* Wait for the commit thread to wake up and die. */
 	journal_kill_thread(journal);
+	/* UFS */
+	journal_kill_cpthread(journal);
 
 	/* Force a final log commit */
 	if (journal->j_running_transaction)
