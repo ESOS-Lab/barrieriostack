@@ -621,6 +621,7 @@ void elv_drain_elevator(struct request_queue *q)
 
 void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 {
+	struct epoch *current_epoch;	/*UFS*/
 	trace_block_rq_insert(q, rq);
 
 	blk_pm_add_request(q, rq);
@@ -663,6 +664,21 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 		break;
 
 	case ELEVATOR_INSERT_SORT_MERGE:
+		/* UFS */
+		current_epoch = current->epoch;
+		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
+			rq->epoch_link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+			if (!rq->epoch_link) {
+				printk(KERN_ERR "UFS BUG: epoch_link alloc failed\n");
+			}
+			current_epoch->pending++;
+			rq->epoch_link->el_epoch = current_epoch;
+			rq->epoch_link->el_next = NULL;
+			if (rq->cmd_bflags & REQ_BARRIER) {
+				rq->cmd_bflags &= ~REQ_BARRIER;
+				blk_start_new_epoch(q);
+			}
+		}
 		/*
 		 * If we succeed in merging this request with one in the
 		 * queue already, we are done - rq has now been freed,

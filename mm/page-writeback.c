@@ -1758,12 +1758,19 @@ int write_cache_pages(struct address_space *mapping,
 			range_whole = 1;
 		cycled = 1; /* ignore range_cyclic tests */
 	}
-	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
+	/* UFS */
+	if (wbc->sync_mode == WB_SYNC_ALL || wbc->sync_mode == WB_ORDERED_ALL ||
+		wbc->sync_mode == WB_BARRIER_ALL || wbc->tagged_writepages)
+	//if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
 		tag = PAGECACHE_TAG_TOWRITE;
+	
 	else
 		tag = PAGECACHE_TAG_DIRTY;
 retry:
-	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
+	/* UFS */
+	if (wbc->sync_mode == WB_SYNC_ALL || wbc->sync_mode == WB_ORDERED_ALL ||
+		wbc->sync_mode == WB_BARRIER_ALL || wbc->tagged_writepages)
+	//if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
 		tag_pages_for_writeback(mapping, index, end);
 	done_index = index;
 	while (!done && (index <= end)) {
@@ -1915,6 +1922,10 @@ int generic_writepages(struct address_space *mapping,
 
 	blk_start_plug(&plug);
 	ret = write_cache_pages(mapping, wbc, __writepage, mapping);
+	/* UFS */
+	if (wbc->sync_mode == WB_BARRIER_ALL) {
+		blk_issue_barrier_plug(&plug);
+	}
 	blk_finish_plug(&plug);
 	return ret;
 }

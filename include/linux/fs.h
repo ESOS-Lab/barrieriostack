@@ -2224,6 +2224,18 @@ extern int __filemap_fdatawrite_range(struct address_space *mapping,
 extern int filemap_fdatawrite_range(struct address_space *mapping,
 				loff_t start, loff_t end);
 
+
+/* UFS */
+extern int filemap_fdatadispatch(struct address_space *);
+
+extern int filemap_fdatadispatch_range(struct address_space *, loff_t lstart, 
+			loff_t lend);
+
+extern int filemap_write_and_dispatch_range(struct address_space *,
+			loff_t lstart, loff_t lend);
+extern int filemap_ordered_write_range(struct address_space *,
+			loff_t lstart, loff_t lend);
+
 extern int vfs_fsync_range(struct file *file, loff_t start, loff_t end,
 			   int datasync);
 extern int vfs_fsync(struct file *file, int datasync);
@@ -2236,6 +2248,7 @@ extern int vfs_fbarrier(struct file *file, int datasync);
 extern int generic_write_sync(struct file *file, loff_t pos, loff_t count);
 // UFS project add
 extern int generic_write_fbarrier(struct file *file, loff_t pos, loff_t count);
+
 
 extern void emergency_sync(void);
 extern void emergency_remount(void);
@@ -2409,6 +2422,8 @@ extern void inode_sb_list_add(struct inode *inode);
 
 #ifdef CONFIG_BLOCK
 extern void submit_bio(int, struct bio *);
+/*UFS*/
+extern void submit_bio64(long long, struct bio *);
 extern int bdev_read_only(struct block_device *);
 #endif
 extern int set_blocksize(struct block_device *, int);

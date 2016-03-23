@@ -251,6 +251,90 @@ int filemap_fdatawrite_range(struct address_space *mapping, loff_t start,
 }
 EXPORT_SYMBOL(filemap_fdatawrite_range);
 
+/* UFS: UFS filemap functions */
+int filemap_fdatadispatch_range(struct address_space *mapping, loff_t start_byte,
+				loff_t end_byte)
+{
+	pgoff_t index = start_byte >> PAGE_CACHE_SHIFT;
+	pgoff_t end = end_byte >> PAGE_CACHE_SHIFT;
+	struct pagevec pvec;
+	int nr_pages;
+	int ret2, ret = 0;
+	
+	if (end_byte < start_byte)
+		goto out;
+
+	pagevec_init(&pvec, 0);
+	while ((index <= end) &&
+			(nr_pages = pagevec_lookup_tag(&pvec, mapping, &index,
+			PAGECACHE_TAG_WRITEBACK,
+			min(end - index, (pgoff_t)PAGEVEC_SIZE-1) + 1)) != 0) {
+		unsigned i;
+
+		for (i = 0; i < nr_pages; i++) {
+			struct page *page = pvec.pages[i];
+
+			/* until radix tree lookup accepts end_index */
+			if (page->index > end)
+				continue;
+
+			wait_on_page_dispatch(page);
+			//if (TestClearPageError(page))
+			//	ret = -EIO;
+		}
+		pagevec_release(&pvec);
+		cond_resched();
+	}
+out:
+	return ret;
+	/* UFS: We cannot determine the error in UFS */
+	ret2 = filemap_check_errors(mapping);
+	if (!ret)
+		ret = ret2;
+	return ret;
+}
+EXPORT_SYMBOL(filemap_fdatadispatch_range);
+
+/*
+ * UFS: filemap_fdatadispatch wait for writes to be dispatched */
+int filemap_fdatadispatch(struct address_space *mapping)
+{
+	loff_t i_size = i_size_read(mapping->host);
+
+	if (i_size == 0)
+		return 0;
+
+	return filemap_fdatadispatch_range(mapping, 0, i_size - 1);
+}
+EXPORT_SYMBOL(filemap_fdatadispatch);
+
+int filemap_write_and_dispatch_range(struct address_space *mapping,
+				loff_t lstart, loff_t lend)
+{
+	int err = 0;
+
+	if (mapping->nrpages) {
+		err = __filemap_fdatawrite_range(mapping, lstart, lend,
+						WB_BARRIER_ALL);
+		if (err != -EIO) {
+			err = filemap_fdatadispatch_range(mapping,
+						lstart, lend);
+		}
+	}
+	/* 
+	 * UFS: As we cannot determine the error, we always return true
+	 */
+	return err;
+}
+EXPORT_SYMBOL(filemap_write_and_dispatch_range);
+
+int filemap_ordered_write_range(struct address_space *mapping, loff_t start,
+				loff_t end)
+{
+	return __filemap_fdatawrite_range(mapping, start, end, WB_BARRIER_ALL);
+}
+EXPORT_SYMBOL(filemap_ordered_write_range);
+
 /**
  * filemap_flush - mostly a non-blocking flush
  * @mapping:	target address_space
