@@ -2424,6 +2424,7 @@ extern void inode_sb_list_add(struct inode *inode);
 extern void submit_bio(int, struct bio *);
 /*UFS*/
 extern void submit_bio64(long long, struct bio *);
+
 extern int bdev_read_only(struct block_device *);
 #endif
 extern int set_blocksize(struct block_device *, int);

@@ -1043,6 +1043,10 @@ void jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block);
 
 /* Commit management */
 extern void jbd2_journal_commit_transaction(journal_t *);
+/* UFS: Commit management */
+extern void jbd2_journal_barrier_commit_transaction(journal_t *);
+extern void jbd2_journal_cpsetup_transaction(journal_t *);
+
 
 /* Checkpoint list management */
 int __jbd2_journal_clean_checkpoint_list(journal_t *journal);
@@ -1156,8 +1160,10 @@ extern int	   jbd2_journal_recover    (journal_t *journal);
 extern int	   jbd2_journal_wipe       (journal_t *, int);
 extern int	   jbd2_journal_skip_recovery	(journal_t *);
 extern void	   jbd2_journal_update_sb_errno(journal_t *);
+/* UFS: int -> long long  */
 extern void	   jbd2_journal_update_sb_log_tail	(journal_t *, tid_t,
-				unsigned long, int);
+				unsigned long, long long);
+
 extern void	   __jbd2_journal_abort_hard	(journal_t *);
 extern void	   jbd2_journal_abort      (journal_t *, int);
 extern int	   jbd2_journal_errno      (journal_t *);

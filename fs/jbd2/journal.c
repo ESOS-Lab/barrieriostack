@@ -201,6 +201,8 @@ loop:
 		jbd_debug(1, "OK, requests differ\n");
 		write_unlock(&journal->j_state_lock);
 		del_timer_sync(&journal->j_commit_timer);
+		/* UFS commit function */
+		//jbd2_journal_barrier_commit_transaction(journal);
 		jbd2_journal_commit_transaction(journal);
 		write_lock(&journal->j_state_lock);
 		goto loop;
@@ -271,11 +273,43 @@ static int kjournald2cp(void *arg)
 
 	journal->j_cptask = current;
 	wake_up(&journal->j_wait_done_cpsetup);
-//loop:
+loop:
+	if (journal->j_flags & JBD2_UNMOUNT)
+		goto end_loop;
 
-//end_loop:
+	if (journal->j_cpsetup_transactions) {
+		printk(KERN_ERR "UFS: jbd2_journal_cpsetup start\n");
+		jbd2_journal_cpsetup_transaction(journal);
+		printk(KERN_ERR "UFS: jbd2_journal_cpsetup end\n");
+		goto loop;
+	}
+	wake_up(&journal->j_wait_done_cpsetup);
+	if (freezing(current)) {
+		printk(KERN_ERR "UFS: kjournald2 freezing\n");
+		try_to_freeze();
+	} else {
+		DEFINE_WAIT(wait);
+		int should_sleep = 1;
+
+		prepare_to_wait(&journal->j_wait_cpsetup, &wait,
+				TASK_INTERRUPTIBLE);
+		if (journal->j_cpsetup_transactions)
+			should_sleep = 0;
+		if (journal->j_cpsetup_sequence != journal->j_commit_sequence)
+			should_sleep = 0;
+		if (should_sleep) {
+			printk(KERN_ERR "UFS: kjournald2 start wait\n");
+			schedule();
+			printk(KERN_ERR "UFS: kjournald2 end wait\n");
+		}	
+		finish_wait(&journal->j_wait_cpsetup, &wait);
+	}
+	goto loop;
+
+end_loop:
 	journal->j_cptask = NULL;
 	wake_up(&journal->j_wait_done_cpsetup);
+	printk(KERN_ERR "UFS: kjournald2cp exit\n");
 	return 0;
 }
 static int jbd2_journal_start_thread(journal_t *journal)
@@ -772,6 +806,38 @@ wait_commit:
 }
 EXPORT_SYMBOL(jbd2_complete_transaction);
 
+/* UFS */
+int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid)
+{
+	int err = 0;
+
+	read_lock(&journal->j_state_lock);
+
+	while (tid_gt(tid, journal->j_cpsetup_sequence)) {
+		jbd_debug(1, "JBD2cp: want %d, j_cpsetup_sequence=%d\n",
+				tid, journal->j_cpsetup_sequence);
+		wake_up(&journal->j_wait_cpsetup);
+		read_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup,
+				!tid_gt(tid, journal->j_cpsetup_sequence));
+		read_lock(&journal->j_state_lock);
+	}
+	read_unlock(&journal->j_state_lock);
+	
+	if (unlikely(is_journal_aborted(journal))) {
+		printk(KERN_EMERG "journal commit I/O error\n");
+		err = -EIO;
+	}
+	return err; 
+}
+
+int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
+{
+	jbd2_complete_transaction(journal, tid);
+	return jbd2_log_wait_cpsetup(journal, tid);
+}
+EXPORT_SYMBOL(jbd2_complete_cpsetup_transaction);
+
 /*
  * Log buffer allocation routines:
  */
@@ -915,7 +981,10 @@ void __jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block)
 	 * space and if we lose sb update during power failure we'd replay
 	 * old transaction with possibly newly overwritten data.
 	 */
-	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_FUA);
+	/* UFS */
+	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_ORDERED);
+	//jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_FUA);
+	
 	write_lock(&journal->j_state_lock);
 	freed = block - journal->j_tail;
 	if (block < journal->j_tail)
@@ -1359,7 +1428,8 @@ static int journal_reset(journal_t *journal)
 	return ret;
 }
 
-static void jbd2_write_superblock(journal_t *journal, int write_op)
+//static void jbd2_write_superblock(journal_t *journal, int write_op)
+static void jbd2_write_superblock(journal_t *journal, long long write_op)
 {
 	struct buffer_head *bh = journal->j_sb_buffer;
 	journal_superblock_t *sb = journal->j_superblock;
@@ -1387,6 +1457,11 @@ static void jbd2_write_superblock(journal_t *journal, int write_op)
 	jbd2_superblock_csum_set(journal, sb);
 	get_bh(bh);
 	bh->b_end_io = end_buffer_write_sync;
+	/* UFS */
+	ret = submit_bh64(write_op, bh);
+	wait_on_buffer_dispatch(bh);
+	
+	/*
 	ret = submit_bh(write_op, bh);
 	wait_on_buffer(bh);
 	if (buffer_write_io_error(bh)) {
@@ -1399,6 +1474,7 @@ static void jbd2_write_superblock(journal_t *journal, int write_op)
 		       "journal superblock for %s.\n", ret,
 		       journal->j_devname);
 	}
+	*/
 }
 
 /**
@@ -1411,8 +1487,9 @@ static void jbd2_write_superblock(journal_t *journal, int write_op)
  * Update a journal's superblock information about log tail and write it to
  * disk, waiting for the IO to complete.
  */
+/* UFS: int write_op -> long long */
 void jbd2_journal_update_sb_log_tail(journal_t *journal, tid_t tail_tid,
-				     unsigned long tail_block, int write_op)
+				     unsigned long tail_block, long long write_op)
 {
 	journal_superblock_t *sb = journal->j_superblock;
 

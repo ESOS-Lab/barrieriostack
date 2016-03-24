@@ -3060,6 +3060,77 @@ int submit_bh(int rw, struct buffer_head *bh)
 }
 EXPORT_SYMBOL(submit_bh);
 
+
+/* UFS */
+int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_flags)
+{
+	struct bio *bio;
+	int ret = 0;
+
+	BUG_ON(!buffer_locked(bh));
+	BUG_ON(!buffer_mapped(bh));
+	BUG_ON(!bh->b_end_io);
+	BUG_ON(buffer_delay(bh));
+	BUG_ON(buffer_unwritten(bh));
+
+	/*
+	 * Only clear out a write error when rewriting
+	 */
+	if (test_set_buffer_req(bh) && (rw & WRITE))
+		clear_buffer_write_io_error(bh);
+
+	/*
+	 * from here on down, it's all bio -- do the initial mapping,
+	 * submit_bio -> generic_make_request may further map this bio around
+	 */
+	bio = bio_alloc(GFP_NOIO, 1);
+
+	bio->bi_sector = bh->b_blocknr * (bh->b_size >> 9);
+	bio->bi_bdev = bh->b_bdev;
+	bio->bi_io_vec[0].bv_page = bh->b_page;
+	bio->bi_io_vec[0].bv_len = bh->b_size;
+	bio->bi_io_vec[0].bv_offset = bh_offset(bh);
+
+	bio->bi_vcnt = 1;
+	bio->bi_size = bh->b_size;
+
+	bio->bi_end_io = end_bio_bh_io_sync;
+	bio->bi_private = bh;
+	bio->bi_flags |= bio_flags;
+
+	/* Take care of bh's that straddle the end of the device */
+	guard_bh_eod(rw, bio, bh);
+
+	if (buffer_meta(bh))
+		rw |= REQ_META;
+	if (buffer_prio(bh))
+		rw |= REQ_PRIO;
+
+	if(buffer_sync_flush(bh)) {
+		rw |= REQ_SYNC;
+		clear_buffer_sync_flush(bh);
+	}
+
+	bio_get(bio);
+	/* UFS */
+	test_set_buffer_dispatch(bh);
+	submit_bio64(rw, bio);
+
+	if (bio_flagged(bio, BIO_EOPNOTSUPP))
+		ret = -EOPNOTSUPP;
+
+	bio_put(bio);
+	return ret;
+}
+
+EXPORT_SYMBOL(_submit_bh64);
+
+int submit_bh64(long long rw, struct buffer_head *bh)
+{
+	return _submit_bh64(rw, bh, 0);
+}
+EXPORT_SYMBOL(submit_bh64);
+
 /**
  * ll_rw_block: low-level access to block devices (DEPRECATED)
  * @rw: whether to %READ or %WRITE or maybe %READA (readahead)
