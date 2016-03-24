@@ -274,10 +274,10 @@ static int kjournald2cp(void *arg)
 	journal->j_cptask = current;
 	wake_up(&journal->j_wait_done_cpsetup);
 loop:
-	printk(KERN_ERR "UFS: kjournald2 loop start\n");
+	//printk(KERN_ERR "UFS: kjournald2 loop start\n");
 	if (journal->j_flags & JBD2_UNMOUNT)
 		goto end_loop;
-	printk(KERN_ERR "UFS: cptx: %lld, cpsetup: %d , commit: %d\n", (long long)journal->j_cpsetup_transactions, journal->j_cpsetup_sequence, journal->j_commit_sequence);
+	//printk(KERN_ERR "UFS: cptx: %lld, cpsetup: %d , commit: %d\n", (long long)journal->j_cpsetup_transactions, journal->j_cpsetup_sequence, journal->j_commit_sequence);
 	if (journal->j_cpsetup_sequence != journal->j_commit_sequence) {
 	//if (journal->j_cpsetup_transactions) {
 		printk(KERN_ERR "UFS: jbd2_journal_cpsetup start\n");
@@ -306,7 +306,7 @@ loop:
 		}	
 		finish_wait(&journal->j_wait_cpsetup, &wait);
 	}
-	printk(KERN_ERR "UFS: kjournald2 loop end\n");
+	//printk(KERN_ERR "UFS: kjournald2 loop end\n");
 	goto loop;
 
 end_loop:
@@ -1426,8 +1426,10 @@ static int journal_reset(journal_t *journal)
 	/* UFS */
 	//return jbd2_journal_start_thread(journal);
 	ret = jbd2_journal_start_thread(journal);
-	if (!ret)
+	if (!ret) {
 		ret = jbd2_journal_start_cpthread(journal);
+		printk(KERN_ERR "jbd2 journal start cpthread end\n");
+	}
 	return ret;
 }
 
