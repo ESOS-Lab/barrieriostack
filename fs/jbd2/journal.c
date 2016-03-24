@@ -278,8 +278,8 @@ loop:
 	if (journal->j_flags & JBD2_UNMOUNT)
 		goto end_loop;
 	//printk(KERN_ERR "UFS: cptx: %lld, cpsetup: %d , commit: %d\n", (long long)journal->j_cpsetup_transactions, journal->j_cpsetup_sequence, journal->j_commit_sequence);
-	if (journal->j_cpsetup_sequence != journal->j_commit_sequence) {
-	//if (journal->j_cpsetup_transactions) {
+	//if (journal->j_cpsetup_sequence != journal->j_commit_sequence) {
+	if (journal->j_cpsetup_transactions) {
 		printk(KERN_ERR "UFS: jbd2_journal_cpsetup start\n");
 		jbd2_journal_cpsetup_transaction(journal);
 		printk(KERN_ERR "UFS: jbd2_journal_cpsetup end\n");
@@ -1428,7 +1428,7 @@ static int journal_reset(journal_t *journal)
 	ret = jbd2_journal_start_thread(journal);
 	if (!ret) {
 		ret = jbd2_journal_start_cpthread(journal);
-		printk(KERN_ERR "jbd2 journal start cpthread end\n");
+		printk(KERN_INFO "jbd2 journal start cpthread end\n");
 	}
 	return ret;
 }
