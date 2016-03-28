@@ -96,12 +96,13 @@ static void journal_end_logbuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
+	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
 	/*
 	 * UFS
 	 */
-	clear_buffer_jwrite(bh); 
-	__brelse(bh);
+	//clear_buffer_jwrite(bh); 
+	//__brelse(bh);
 }
 /* 
  * UFS: IO end handlers for io_bufs
@@ -111,6 +112,8 @@ static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 {
 	struct buffer_head *orig_bh = bh->b_private;
 
+	struct journal_head *jh;
+
 	BUFFER_TRACE(bh, "");
 	if (uptodate)
 		set_buffer_uptodate(bh);
@@ -121,21 +124,62 @@ static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	unlock_buffer(bh);
+	wake_up_buffer_dispatch(bh);
+	//unlock_buffer(bh);
 	/*
 	 * UFS
 	 */
+	
+	//jbd2_unfile_log_bh(bh);
+	unlock_buffer(bh);
+	return;
+
+		/*
+		 * The list contains temporary buffer heads created by
+		 * jbd2_journal_write_metadata_buffer().
+		 */
+		//BUFFER_TRACE(bh, "dumping temporary bh");
+		//__brelse(bh);
+		//J_ASSERT_BH(bh, atomic_read(&bh->b_count) == 0);
+		//free_buffer_head(bh);
+
+		/* We also have to refile the corresponding shadowed buffer */
+
+
+		jh = bh2jh(orig_bh);
+		//jh = jh->b_transaction->t_shadow_list->b_tprev;//commit_transaction->t_shadow_list->b_tprev;
+		//bh = jh2bh(jh);
+		 clear_buffer_jwrite(orig_bh);
+		//J_ASSERT_BH(bh, buffer_jbddirty(bh));
+		//J_ASSERT_BH(bh, !buffer_shadow(bh));
+
+		/* The metadata is now released for reuse, but we need
+                   to remember it against this transaction so that when
+                   we finally commit, we can do any checkpointing
+                   required. */
+		//JBUFFER_TRACE(jh, "file as BJ_Forget");
+
+		jbd2_journal_file_buffer(jh, jh->b_transaction, BJ_Forget);
+
+
+		//JBUFFER_TRACE(jh, "brelse shadowed buffer");
+
+		__brelse(orig_bh);
+
+		//unlock_buffer(bh);
+	
 	__brelse(bh);
 	if (atomic_read(&bh->b_count)==0)
 		free_buffer_head(bh);
+	
 }
 /* UFS: IO end handler for commit record */
-/*
+
 
 static void journal_end_commit_record_io_async(struct buffer_head *bh, int uptodate)
 {
 	struct buffer_head *orig_bh = bh->b_private;
-	struct journal_head *jh = bh2jh(orig_bh);
+	//struct journal_head *jh = bh2jh(orig_bh);
 
 	BUFFER_TRACE(bh, "");
 	if (uptodate)
@@ -147,17 +191,17 @@ static void journal_end_commit_record_io_async(struct buffer_head *bh, int uptod
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
+	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
-*/
+
 	/*
 	 * UFS
 	 */
-/*
-	clear_buffer_dirty(bh);
-	put_bh(bh);
-	wake_up(&jh->b_transaction->t_journal->j_wait_cpsetup);
+
+	
+	//wake_up(&jh->b_transaction->t_journal->j_wait_cpsetup);
 }
-*/
+
 
 
 
@@ -270,6 +314,9 @@ static int journal_submit_commit_record(journal_t *journal,
 	clear_buffer_dirty(bh);
 	set_buffer_uptodate(bh);
 	bh->b_end_io = journal_end_buffer_io_sync;
+	/* UFS */
+	bh->b_end_io = journal_end_commit_record_io_async;
+	commit_transaction->cbh = bh;
 
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !JBD2_HAS_INCOMPAT_FEATURE(journal,
@@ -309,8 +356,9 @@ static int journal_dispatch_on_commit_record(journal_t *journal,
 {
 	int ret = 0;
 
+	clear_buffer_dirty(bh);
 	wait_on_buffer_dispatch(bh);
-	
+	//wait_on_buffer(bh);
 	//put_bh(bh);
 	return ret;
 }
@@ -1647,6 +1695,10 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 			continue;
 		}
 		jbd2_file_log_bh(&io_bufs, wbuf[bufs]);
+		/* UFS */
+		wbuf[bufs]->b_end_io = journal_end_iobuf_io_async;
+		//get_bh(wbuf[bufs]);
+
 
 		/* Record the new block's tag in the current descriptor
                    buffer */
@@ -1704,8 +1756,22 @@ start_journal_io:
 				lock_buffer(bh);
 				clear_buffer_dirty(bh);
 				set_buffer_uptodate(bh);
-				bh->b_end_io = journal_end_buffer_io_sync;
+				/* UFS */
+				if (bh->b_end_io != journal_end_iobuf_io_async)
+				  bh->b_end_io = journal_end_logbuf_io_async;  
 				submit_bh(WRITE_SYNC, bh);
+				/*
+				if (commit_transaction->t_buffers != NULL) {
+				  submit_bh64(WRITE_ORDERED, bh);
+				} else if (i == bufs - 1 &&
+					   commit_transaction->t_buffers == NULL) {
+				  submit_bh64(WRITE_BARRIER, bh);
+				} else {
+				  submit_bh64(WRITE_ORDERED, bh);
+				}
+				*/
+				
+				//submit_bh(WRITE_SYNC, bh);
 			}
 			cond_resched();
 			stats.run.rs_blocks_logged += bufs;
@@ -1785,14 +1851,37 @@ start_journal_io:
 	*/
 
 	jbd_debug(3, "JBD2: commit phase 3\n");
-
+	
+	/*	while (bh->b_assoc_buffers.next == io_bufs
+	       bh = list_entry(io_bufs.next, struct buffer_head, b_assoc_buffers) == 
+	       ) 
+	*/
 	while (!list_empty(&io_bufs)) {
-		struct buffer_head *bh = list_entry(io_bufs.prev,
+	  	struct buffer_head *bh = list_entry(io_bufs.prev,
 						    struct buffer_head,
 						    b_assoc_buffers);
-
-		wait_on_buffer(bh);
+	  
+		wait_on_buffer_dispatch(bh);
+		//jbd2_unfile_log_bh(bh);
+		//continue;
+		
+		//wait_on_buffer(bh);
+		jbd2_unfile_log_bh(bh);
 		cond_resched();
+		
+		//__brelse(bh);
+		//if (atomic_read(&bh->b_count)==0)
+		//  free_buffer_head(bh);
+
+		jbd2_file_log_bh(&commit_transaction->io_bufs, bh);
+		continue;
+		
+		jh = commit_transaction->t_shadow_list->b_tprev;
+		bh = jh2bh(jh);
+		clear_buffer_jwrite(bh);
+		jbd2_journal_file_buffer(jh, commit_transaction, BJ_Forget);
+		__brelse(bh);
+		continue;
 
 		if (unlikely(!buffer_uptodate(bh)))
 			err = -EIO;
@@ -1824,7 +1913,8 @@ start_journal_io:
 		__brelse(bh);
 	}
 
-	J_ASSERT (commit_transaction->t_shadow_list == NULL);
+
+	//J_ASSERT (commit_transaction->t_shadow_list == NULL);
 
 	jbd_debug(3, "JBD2: commit phase 4\n");
 
@@ -1833,6 +1923,12 @@ start_journal_io:
 		struct buffer_head *bh;
 
 		bh = list_entry(log_bufs.prev, struct buffer_head, b_assoc_buffers);
+		wait_on_buffer_dispatch(bh);
+		wait_on_buffer(bh);
+		jbd2_unfile_log_bh(bh);
+		jbd2_file_log_bh(&commit_transaction->log_bufs, bh);
+		continue;
+
 		wait_on_buffer(bh);
 		cond_resched();
 
@@ -1846,8 +1942,7 @@ start_journal_io:
 		/* AKPM: bforget here */
 	}
 
-	if (err)
-		jbd2_journal_abort(journal, err);
+	
 
 	jbd_debug(3, "JBD2: commit phase 5\n");
 	write_lock(&journal->j_state_lock);
@@ -1862,16 +1957,11 @@ start_journal_io:
 		if (err)
 			__jbd2_journal_abort_hard(journal);
 	}
+	/*
 	if (cbh)
-		err = journal_wait_on_commit_record(journal, cbh);
-	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
-				      JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT) &&
-	    journal->j_flags & JBD2_BARRIER) {
-		blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
-	}
-
-	if (err)
-		jbd2_journal_abort(journal, err);
+	  err = journal_wait_on_commit_record(journal, cbh);
+	*/
+	
 
 	/*
 	 * Now disk caches for filesystem device are flushed so we are safe to
@@ -1891,7 +1981,65 @@ start_journal_io:
 	J_ASSERT(list_empty(&commit_transaction->t_inode_list));
 	J_ASSERT(commit_transaction->t_buffers == NULL);
 	J_ASSERT(commit_transaction->t_checkpoint_list == NULL);
-	J_ASSERT(commit_transaction->t_shadow_list == NULL);
+	//J_ASSERT(commit_transaction->t_shadow_list == NULL);
+
+
+
+	while (!list_empty(&commit_transaction->io_bufs)) {
+	  struct buffer_head *bh = list_entry(commit_transaction->io_bufs.prev, struct buffer_head, b_assoc_buffers);
+	 
+	  wait_on_buffer(bh);
+	  if (unlikely(!buffer_uptodate(bh)))
+	    err = -EIO;
+	  jbd2_unfile_log_bh(bh);
+
+	  __brelse(bh);
+	  if (atomic_read(&bh->b_count)==0)
+	    free_buffer_head(bh);
+
+	  jh = commit_transaction->t_shadow_list->b_tprev;
+	  bh = jh2bh(jh);
+	  clear_buffer_jwrite(bh);
+	  jbd2_journal_file_buffer(jh, commit_transaction, BJ_Forget);
+	  __brelse(bh);	  
+	}
+
+	while (!list_empty(&commit_transaction->log_bufs)) {
+	  struct buffer_head *bh;
+	  bh = list_entry(commit_transaction->log_bufs.prev, struct buffer_head, b_assoc_buffers);
+	  wait_on_buffer(bh);
+	  if (unlikely(!buffer_uptodate(bh)))
+	    err = -EIO;
+
+	  BUFFER_TRACE(bh, "ph5: control buffer writeout done: unfile");
+	  clear_buffer_jwrite(bh);
+	  jbd2_unfile_log_bh(bh);
+	  __brelse(bh);		/* One for getblk */
+	  /* AKPM: bforget here */
+	}
+	 
+	if (err)
+		jbd2_journal_abort(journal, err);
+
+	if (commit_transaction->cbh) {
+	  //err = journal_wait_on_commit_record(journal, cbh);
+	  err = journal_dispatch_on_commit_record(journal,cbh);
+	  //clear_buffer_dirty(commit_transaction->cbh);
+	  wait_on_buffer(commit_transaction->cbh);	  
+	  if (unlikely(!buffer_uptodate(commit_transaction->cbh)))
+	    err = -EIO;
+	    put_bh(commit_transaction->cbh);            /* One for getblk() */
+	}
+
+	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
+				      JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT) &&
+	    journal->j_flags & JBD2_BARRIER) {
+	  // blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
+	}
+
+	if (err)
+		jbd2_journal_abort(journal, err);
+
 
 restart_loop:
 	/*
@@ -2089,6 +2237,26 @@ restart_loop:
 
 	write_unlock(&journal->j_state_lock);
 
+	/*
+	 * UFS: Inserting this transaction to j_checkpoint_transactions is
+	 * removed. It will be performed in cpthread. 
+	 */
+
+	if (journal->j_cpsetup_transactions == NULL) {
+		journal->j_cpsetup_transactions = commit_transaction;
+		commit_transaction->t_cpnext = commit_transaction;
+		commit_transaction->t_cpnext = commit_transaction;
+	} else {
+		commit_transaction->t_cpnext =
+			journal->j_cpsetup_transactions;
+		commit_transaction->t_cpprev =
+			commit_transaction->t_cpnext->t_cpprev;
+		commit_transaction->t_cpnext->t_cpprev = 
+			commit_transaction;
+		commit_transaction->t_cpprev->t_cpnext =
+			commit_transaction;
+	}
+
 	if (journal->j_checkpoint_transactions == NULL) {
 		journal->j_checkpoint_transactions = commit_transaction;
 		commit_transaction->t_cpnext = commit_transaction;
@@ -2135,6 +2303,7 @@ restart_loop:
 	  struct buffer_head *bh = wbuf[i];
 	  bh->b_end_io = journal_end_iobuf_io_async;
 	  bh->b_end_io = journal_end_logbuf_io_async;
+	  bh->b_end_io = journal_end_commit_record_io_async;
 	}
 	journal_dispatch_on_commit_record(journal, cbh);
 	journal_dispatch_inode_data_buffers(journal, commit_transaction);
@@ -2149,26 +2318,18 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 	J_ASSERT(journal->j_cpsetup_transactions != NULL);
 	commit_transaction = journal->j_cpsetup_transactions;
 
+	printk(KERN_ERR "UFS: %s\n", __func__);
 
-	while (commit_transaction->t_shadow_list != NULL) {
-		struct buffer_head *bh;
-		/* We also have to refile the corresponding shadowed buffer */
-		jh = commit_transaction->t_shadow_list->b_tprev;
-		bh = jh2bh(jh);
-		clear_buffer_jwrite(bh);
-		J_ASSERT_BH(bh, buffer_jbddirty(bh));
-		J_ASSERT_BH(bh, !buffer_shadow(bh));
-
-		/* The metadata is now released for reuse, but we need
-                   to remember it against this transaction so that when
-                   we finally commit, we can do any checkpointing
-                   required. */
-		JBUFFER_TRACE(jh, "file as BJ_Forget");
-		jbd2_journal_file_buffer(jh, commit_transaction, BJ_Forget);
-		JBUFFER_TRACE(jh, "brelse shadowed buffer");
-		__brelse(bh);
-
+	commit_transaction->t_cpnext->t_cpprev = commit_transaction->t_cpprev;
+	commit_transaction->t_cpprev->t_cpnext = commit_transaction->t_cpnext;
+	if (journal->j_cpsetup_transactions == commit_transaction) {
+		journal->j_cpsetup_transactions = commit_transaction->t_cpnext;
+		if (journal->j_cpsetup_transactions == commit_transaction)
+			journal->j_cpsetup_transactions = NULL;
 	}
+
+	return;
+
 
 restart_loop:
 	/*

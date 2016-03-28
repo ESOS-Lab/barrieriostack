@@ -104,6 +104,10 @@ jbd2_get_transaction(journal_t *journal, transaction_t *transaction)
 	transaction->t_start = jiffies;
 	transaction->t_requested = 0;
 
+	/* UFS */
+	INIT_LIST_HEAD(&transaction->io_bufs);
+	INIT_LIST_HEAD(&transaction->log_bufs);
+	transaction->cbh = NULL;
 	return transaction;
 }
 

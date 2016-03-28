@@ -3113,7 +3113,7 @@ int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_fl
 
 	bio_get(bio);
 	/* UFS */
-	test_set_buffer_dispatch(bh);
+	set_buffer_dispatch(bh);
 	submit_bio64(rw, bio);
 
 	if (bio_flagged(bio, BIO_EOPNOTSUPP))
