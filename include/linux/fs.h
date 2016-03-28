@@ -2429,15 +2429,10 @@ static inline void remove_inode_hash(struct inode *inode)
 extern void inode_sb_list_add(struct inode *inode);
 
 #ifdef CONFIG_BLOCK
-<<<<<<< HEAD
-extern void submit_bio(int, struct bio *);
-/*UFS*/
+extern void submit_bio(unsigned long long, struct bio *);
+/* UFS project */
 extern void submit_bio64(long long, struct bio *);
 
-=======
-// UFS project modify
-extern void submit_bio(unsigned long long, struct bio *);
->>>>>>> add_syscall
 extern int bdev_read_only(struct block_device *);
 #endif
 extern int set_blocksize(struct block_device *, int);

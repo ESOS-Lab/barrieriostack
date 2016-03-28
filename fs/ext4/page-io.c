@@ -345,7 +345,7 @@ static int io_submit_init(struct ext4_io_submit *io,
 	else {
 		io->io_op = WRITE;
 	}
-	#ifdef CONFIG_HANKEUN_DEBUG == 1
+	#ifdef CONFIG_HANKEUN_DEBUG
 	printk("io->io_op:%llu\t io_submit_init\n",io->io_op);
 	#endif
 	io->io_next_block = bh->b_blocknr;

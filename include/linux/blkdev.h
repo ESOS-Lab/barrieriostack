@@ -107,7 +107,7 @@ struct request {
 	struct request_queue *q;
 
 	unsigned int cmd_flags;		
-	unsigned long long cmd_bflags;	/* UFS project: barrier flags */
+	unsigned int cmd_bflags;	/* UFS project: barrier flags */
 
 	enum rq_cmd_type_bits cmd_type;
 	unsigned long atomic_flags;
