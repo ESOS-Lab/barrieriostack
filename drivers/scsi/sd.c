@@ -1,3 +1,4 @@
+#define HANKEUN_DEBUG 1
 /*
  *      sd.c Copyright (C) 1992 Drew Eckhardt
  *           Copyright (C) 1993, 1994, 1995, 1999 Eric Youngdale
@@ -1083,10 +1084,13 @@ static int sd_prep_fn(struct request_queue *q, struct request *rq)
 
 		SCpnt->cmnd[0] += READ_10 - READ_6;
 		SCpnt->cmnd[1] = protect | ((rq->cmd_flags & REQ_FUA) ? 0x8 : 0);
-		/* UFS */
-		if (rq->cmd_bflags & REQ_BARRIER)
+		/* UFS project */
+		if (rq->cmd_bflags & REQ_BARRIER) {
 			SCpnt->cmnd[1] |= 0x4;
-
+			#if HANKEUN_DEBUG == 1
+			printk("SCpnt->cmnd[1] = Reservered bit Set(BARREIR)\n");
+			#endif
+		}
 		SCpnt->cmnd[2] = (unsigned char) (block >> 24) & 0xff;
 		SCpnt->cmnd[3] = (unsigned char) (block >> 16) & 0xff;
 		SCpnt->cmnd[4] = (unsigned char) (block >> 8) & 0xff;

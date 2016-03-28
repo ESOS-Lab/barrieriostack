@@ -182,8 +182,8 @@ typedef void (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
  */
 #define RW_MASK			REQ_WRITE
 #define RWA_MASK		REQ_RAHEAD
-
-#define READ			0
+// UFS project modify
+#define READ			0ULL		
 #define WRITE			RW_MASK
 #define READA			RWA_MASK
 #define KERNEL_READ		(READ|REQ_KERNEL)
@@ -195,7 +195,7 @@ typedef void (dio_iodone_t)(struct kiocb *iocb, loff_t offset,
 #define WRITE_FLUSH		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FLUSH)
 #define WRITE_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FUA)
 #define WRITE_FLUSH_FUA		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_FLUSH | REQ_FUA)
-// UFS project
+/* UFS project */
 #define WRITE_ORDERED		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_ORDERED)
 #define WRITE_BARRIER		(WRITE | REQ_SYNC | REQ_NOIDLE | REQ_ORDERED | REQ_BARRIER)
 
@@ -1553,6 +1553,7 @@ struct file_operations {
 	int (*fsync) (struct file *, loff_t, loff_t, int datasync);
 	// UFS project add 
 	int (*fbarrier) (struct file *, loff_t, loff_t, int datasync);
+
 	int (*aio_fsync) (struct kiocb *, int datasync);
 	int (*fasync) (int, struct file *, int);
 	int (*lock) (struct file *, int, struct file_lock *);
@@ -2189,7 +2190,8 @@ extern int is_bad_inode(struct inode *);
 /*
  * return data direction, READ or WRITE
  */
-#define bio_data_dir(bio)	((bio)->bi_rw & 1)
+// UFS project modify
+#define bio_data_dir(bio)	((bio)->bi_rw & 1ULL)
 
 extern void check_disk_size_change(struct gendisk *disk,
 				   struct block_device *bdev);
@@ -2219,6 +2221,12 @@ extern int filemap_fdatawait_range(struct address_space *, loff_t lstart,
 extern int filemap_write_and_wait(struct address_space *mapping);
 extern int filemap_write_and_wait_range(struct address_space *mapping,
 				        loff_t lstart, loff_t lend);
+// UFS project add
+extern int filemap_write_and_barrier_range(struct address_space *mapping,
+				        loff_t lstart, loff_t lend);
+extern int filemap_write_and_ordered_range(struct address_space *mapping,
+				        loff_t lstart, loff_t lend);
+
 extern int __filemap_fdatawrite_range(struct address_space *mapping,
 				loff_t start, loff_t end, int sync_mode);
 extern int filemap_fdatawrite_range(struct address_space *mapping,
@@ -2421,10 +2429,15 @@ static inline void remove_inode_hash(struct inode *inode)
 extern void inode_sb_list_add(struct inode *inode);
 
 #ifdef CONFIG_BLOCK
+<<<<<<< HEAD
 extern void submit_bio(int, struct bio *);
 /*UFS*/
 extern void submit_bio64(long long, struct bio *);
 
+=======
+// UFS project modify
+extern void submit_bio(unsigned long long, struct bio *);
+>>>>>>> add_syscall
 extern int bdev_read_only(struct block_device *);
 #endif
 extern int set_blocksize(struct block_device *, int);

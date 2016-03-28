@@ -31,12 +31,12 @@ struct backing_dev_info;
 /*
  * fs/fs-writeback.c
  */
+// UFS project modify
 enum writeback_sync_modes {
 	WB_SYNC_NONE,	/* Don't wait on anything */
 	WB_SYNC_ALL,	/* Wait on every mapping */
-	WB_ORDERED_ALL, /* UFS */
-	WB_BARRIER_ALL, /* UFS */
-
+	WB_ORDERED_ALL, /* UFS project: io->op WRITE_BARRIER */
+	WB_BARRIER_ALL, /* UFS project: io->op WRITE_ORDERED */
 };
 
 /*

@@ -106,8 +106,8 @@ struct request {
 
 	struct request_queue *q;
 
-	unsigned int cmd_flags;
-	unsigned long long cmd_bflags;	/* UFS: barrier flags */
+	unsigned int cmd_flags;		
+	unsigned long long cmd_bflags;	/* UFS project: barrier flags */
 
 	enum rq_cmd_type_bits cmd_type;
 	unsigned long atomic_flags;
@@ -598,7 +598,8 @@ static inline unsigned int blk_queue_cluster(struct request_queue *q)
 /*
  * We regard a request as sync, if either a read or a sync write
  */
-static inline bool rw_is_sync(unsigned int rw_flags)
+// UFS project modify
+static inline bool rw_is_sync(unsigned long long rw_flags)
 {
 	return !(rw_flags & REQ_WRITE) || (rw_flags & REQ_SYNC);
 }
@@ -640,8 +641,8 @@ static inline bool rq_mergeable(struct request *rq)
 	return true;
 }
 
-static inline bool blk_check_merge_flags(unsigned int flags1,
-					 unsigned int flags2)
+static inline bool blk_check_merge_flags(unsigned long flags1,
+					 unsigned long flags2)
 {
 	if ((flags1 & REQ_DISCARD) != (flags2 & REQ_DISCARD))
 		return false;
@@ -752,7 +753,9 @@ extern void generic_make_request(struct bio *bio);
 extern void blk_rq_init(struct request_queue *q, struct request *rq);
 extern void blk_put_request(struct request *);
 extern void __blk_put_request(struct request_queue *, struct request *);
-extern struct request *blk_get_request(struct request_queue *, int, gfp_t);
+// UFS project modify
+extern struct request *blk_get_request(struct request_queue *, unsigned long long, gfp_t);
+
 extern struct request *blk_make_request(struct request_queue *, struct bio *,
 					gfp_t);
 extern void blk_requeue_request(struct request_queue *, struct request *);

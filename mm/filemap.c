@@ -474,6 +474,53 @@ int filemap_write_and_wait_range(struct address_space *mapping,
 }
 EXPORT_SYMBOL(filemap_write_and_wait_range);
 
+// UFS project add
+int filemap_write_and_barrier_range(struct address_space *mapping,
+				 loff_t lstart, loff_t lend)
+{
+	int err = 0;
+
+	if (mapping->nrpages) {
+		err = __filemap_fdatawrite_range(mapping, lstart, lend,
+						 WB_BARRIER_ALL);
+		/* See comment of filemap_write_and_wait() */
+		if (err != -EIO) {
+			int err2 = filemap_fdatawait_range(mapping,
+						lstart, lend);
+			if (!err)
+				err = err2;
+		}
+	} else {
+		err = filemap_check_errors(mapping);
+	}
+	return err;
+}
+EXPORT_SYMBOL(filemap_write_and_barrier_range);
+
+// UFS project add
+int filemap_write_and_ordered_range(struct address_space *mapping,
+				 loff_t lstart, loff_t lend)
+{
+	int err = 0;
+
+	if (mapping->nrpages) {
+		err = __filemap_fdatawrite_range(mapping, lstart, lend,
+						 WB_ORDERED_ALL);
+		/* See comment of filemap_write_and_wait() */
+		if (err != -EIO) {
+			int err2 = filemap_fdatawait_range(mapping,
+						lstart, lend);
+			if (!err)
+				err = err2;
+		}
+	} else {
+		err = filemap_check_errors(mapping);
+	}
+	return err;
+}
+EXPORT_SYMBOL(filemap_write_and_ordered_range);
+
+
 /**
  * replace_page_cache_page - replace a pagecache page with a new one
  * @old:	page to be replaced

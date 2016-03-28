@@ -305,7 +305,8 @@ void ext4_io_submit(struct ext4_io_submit *io)
 		bio_put(io->io_bio);
 	}
 	io->io_bio = NULL;
-	io->io_op = 0;
+	// UFS project modify
+	io->io_op = 0ULL;
 	io->io_end = NULL;
 }
 
@@ -331,7 +332,22 @@ static int io_submit_init(struct ext4_io_submit *io,
 	io_end->offset = (page->index << PAGE_CACHE_SHIFT) + bh_offset(bh);
 
 	io->io_bio = bio;
-	io->io_op = (wbc->sync_mode == WB_SYNC_ALL ?  WRITE_SYNC : WRITE);
+	// UFS project modify
+	if (wbc->sync_mode == WB_SYNC_ALL) {
+                io->io_op = WRITE_SYNC;
+        }
+        else if (wbc->sync_mode == WB_BARRIER_ALL) {
+                io->io_op = WRITE_BARRIER;
+        }
+        else if (wbc->sync_mode == WB_ORDERED_ALL) {
+                io->io_op = WRITE_ORDERED;
+        }
+	else {
+		io->io_op = WRITE;
+	}
+	#ifdef CONFIG_HANKEUN_DEBUG == 1
+	printk("io->io_op:%llu\t io_submit_init\n",io->io_op);
+	#endif
 	io->io_next_block = bh->b_blocknr;
 	return 0;
 }

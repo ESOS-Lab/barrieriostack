@@ -212,8 +212,7 @@ typedef struct ext4_io_end {
 } ext4_io_end_t;
 
 struct ext4_io_submit {
-	long long		io_op;		/* UFS */
-	//int			io_op;
+	unsigned long long	io_op;		/* UFS project */
 	struct bio		*io_bio;
 	ext4_io_end_t		*io_end;
 	sector_t		io_next_block;
@@ -2015,6 +2014,7 @@ extern int ext4_sync_file(struct file *, loff_t, loff_t, int);
 extern int ext4_flush_unwritten_io(struct inode *);
 // UFS project
 extern int ext4_fbarrier_file(struct file *, loff_t, loff_t, int);
+extern int ext4_ordered_file(struct file *, loff_t, loff_t, int);
 
 /* hash.c */
 extern int ext4fs_dirhash(const char *name, int len, struct
