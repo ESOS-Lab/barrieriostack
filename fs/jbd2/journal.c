@@ -204,11 +204,18 @@ loop:
 		/* UFS */
 		//jbd2_journal_commit_transaction(journal);
 		jbd2_journal_barrier_commit_transaction(journal);
+		{
+		  DEFINE_WAIT(wait);
+		  prepare_to_wait(&journal->j_wait_done_cpsetup, &wait, TASK_INTERRUPTIBLE);
+		  schedule();		  
+		  finish_wait(&journal->j_wait_done_cpsetup, &wait);
+		}
+		wake_up(&journal->j_wait_done_commit);
 		write_lock(&journal->j_state_lock);
 		goto loop;
 	}
 
-	//wake_up(&journal->j_wait_done_commit);
+	wake_up(&journal->j_wait_done_commit);
 	if (freezing(current)) {
 		/*
 		 * The simpler the better. Flushing journal isn't a

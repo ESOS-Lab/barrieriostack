@@ -1194,6 +1194,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 		JBUFFER_TRACE(jh, "already on other transaction");
 		if (unlikely(jh->b_transaction !=
 			     journal->j_committing_transaction)) {
+		  /*
 			printk(KERN_EMERG "JBD: %s: "
 			       "jh->b_transaction (%llu, %p, %u) != "
 			       "journal->j_committing_transaction (%p, %u)",
@@ -1205,6 +1206,7 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 			       journal->j_committing_transaction ?
 			       journal->j_committing_transaction->t_tid : 0);
 			ret = -EINVAL;
+		  */
 		}
 		if (unlikely(jh->b_next_transaction != transaction)) {
 			printk(KERN_EMERG "JBD: %s: "
