@@ -881,6 +881,8 @@ struct journal_s
 	 * Protects the buffer lists and internal buffer state.
 	 */
 	spinlock_t		j_list_lock;
+  /* UFS: */
+  spinlock_t j_cplist_lock;
 
 	/* Optional inode where we store the journal.  If present, all */
 	/* journal block numbers are mapped into this inode via */

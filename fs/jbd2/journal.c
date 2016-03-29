@@ -208,7 +208,7 @@ loop:
 		goto loop;
 	}
 
-	wake_up(&journal->j_wait_done_commit);
+	//wake_up(&journal->j_wait_done_commit);
 	if (freezing(current)) {
 		/*
 		 * The simpler the better. Flushing journal isn't a
@@ -275,6 +275,7 @@ static int kjournald2cp(void *arg)
 	journal_t *journal = arg;
 	//transaction_t *transacion;
 
+	set_freezable();
 	//setup_timer(&journal->j_commit_timer, commit_timeout,
 	//		(unsigned long)current);
 
@@ -282,12 +283,15 @@ static int kjournald2cp(void *arg)
 	wake_up(&journal->j_wait_done_cpsetup);
 
 	//write_lock(&journal->j_state_lock);
+	
 loop:
 	if (journal->j_flags & JBD2_UNMOUNT)
 		goto end_loop;
 
-	if (journal->j_cpsetup_transactions) {
-		//write_unlock(&journal->j_state_lock);
+	//spin_lock(&journal->j_cplist_lock);
+	if (journal->j_cpsetup_transactions/*journal->j_commit_sequence != journal->j_cpsetup_sequence*/) {	  
+	  //write_unlock(&journal->j_state_lock);
+	  //spin_unlock(&journal->j_cplist_lock);
 		//if (journal->j_cpsetup_sequence < journal->j_commit_sequence)
 		//	;
 		jbd2_journal_cpsetup_transaction(journal);
@@ -298,9 +302,9 @@ loop:
 
 	wake_up(&journal->j_wait_done_cpsetup);
 	if (freezing(current)) {
-		//write_unlock(&journal->j_state_lock);
+	  //	write_unlock(&journal->j_state_lock);
 		try_to_freeze();
-		//write_lock(&journal->j_state_lock);
+		//	write_lock(&journal->j_state_lock);
 	} else {
 		DEFINE_WAIT(wait);
 		int should_sleep = 1;
@@ -309,16 +313,16 @@ loop:
 				TASK_INTERRUPTIBLE);
 		if (journal->j_cpsetup_transactions)//j_commit_sequence != journal->j_commit_reqeust)
 			should_sleep = 0;
-		if (journal->j_cpsetup_sequence != journal->j_commit_sequence)
-			should_sleep = 0;
+		//	if (journal->j_cpsetup_sequence != journal->j_commit_sequence)
+		//		should_sleep = 0;
 		//transaction = journal->j_running_transaction;
 		//if (transaction && time_after_eq(jiffies,
 		//				transaction->t_expires))
 		//	should_sleep = 0;
 		if (should_sleep) {
-			//write_unlock(&journal->j_state_lock);
+		  //	write_unlock(&journal->j_state_lock);
 			schedule();
-			//write_lock(&journal->j_state_lock);
+			//	write_lock(&journal->j_state_lock);
 		}
 		finish_wait(&journal->j_wait_cpsetup, &wait);
 	}
@@ -1167,6 +1171,7 @@ static journal_t * journal_init_common (void)
 	/* UFS */
 	init_waitqueue_head(&journal->j_wait_cpsetup);
 	init_waitqueue_head(&journal->j_wait_done_cpsetup);
+	spin_lock_init(&journal->j_cplist_lock);
 
 	mutex_init(&journal->j_barrier);
 	mutex_init(&journal->j_checkpoint_mutex);
