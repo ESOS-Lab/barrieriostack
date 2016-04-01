@@ -1444,7 +1444,8 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	}
 
 	J_ASSERT(journal->j_running_transaction != NULL);
-	J_ASSERT(journal->j_committing_transaction == NULL);
+	/* UFS */
+	//J_ASSERT(journal->j_committing_transaction == NULL);
 
 	commit_transaction = journal->j_running_transaction;
 	J_ASSERT(commit_transaction->t_state == T_RUNNING);
@@ -1860,6 +1861,7 @@ start_journal_io:
 	  	struct buffer_head *bh = list_entry(io_bufs.prev,
 						    struct buffer_head,
 						    b_assoc_buffers);
+		struct buffer_head *orig_bh = bh->b_private;
 	  
 		wait_on_buffer_dispatch(bh);
 		//jbd2_unfile_log_bh(bh);
@@ -1867,6 +1869,10 @@ start_journal_io:
 		
 		//wait_on_buffer(bh);
 		jbd2_unfile_log_bh(bh);
+		if (orig_bh) {
+		  jbd2_journal_grab_journal_head(orig_bh);
+		  //jbd_lock_bh_state(orig_bh);
+		}
 		cond_resched();
 		
 		//__brelse(bh);
@@ -2025,8 +2031,9 @@ start_journal_io:
 	J_ASSERT(commit_transaction == journal->j_committing_transaction);
 	journal->j_commit_sequence = commit_transaction->t_tid;
 
+	journal->j_committing_transaction = NULL;
+	journal->j_cpsetup_request = commit_transaction->t_tid;
 
-	//journal->j_committing_transaction = NULL;
 	commit_time = ktime_to_ns(ktime_sub(ktime_get(), start_time));
 
 	/*
@@ -2066,7 +2073,7 @@ start_journal_io:
 	}
 	spin_unlock(&journal->j_cplist_lock);
 	wake_up(&journal->j_wait_cpsetup);
-	//wake_up(&journal->j_wait_done_commit);
+	wake_up(&journal->j_wait_done_commit);
 }
 
 void jbd2_journal_cpsetup_transaction(journal_t *journal)
@@ -2110,9 +2117,13 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 	    free_buffer_head(bh);
 
 	  jh = commit_transaction->t_shadow_list->b_tprev;
+	  
 	  bh = jh2bh(jh);
+	  // jbd_unlock_bh_state(bh);
+	  jbd2_journal_put_journal_head(jh);
 	  clear_buffer_jwrite(bh);
 	  jbd2_journal_file_buffer(jh, commit_transaction, BJ_Forget);
+	  //wake_up_bit(&bh->b_state, BH_Shadow);
 	  __brelse(bh);	  
 	}
 
@@ -2295,11 +2306,13 @@ restart_loop:
 	}
 
 
-
-	journal->j_committing_transaction = journal->j_cpsetup_transactions;
+	spin_lock(&journal->j_cplist_lock);
+	//journal->j_committing_transaction = journal->j_cpsetup_transactions;
 	journal->j_committing_transaction = NULL;
 	//journal->j_commit_sequence = commit_transaction->t_tid;
 	journal->j_cpsetup_sequence = commit_transaction->t_tid;
+	//journal->j_cpsetup_request
+	spin_unlock(&journal->j_cplist_lock);
 
 	write_unlock(&journal->j_state_lock);
 

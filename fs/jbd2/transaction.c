@@ -629,6 +629,14 @@ static int sleep_on_shadow_bh(void *word)
 	return 0;
 }
 
+
+//#define CPSETUPWAIT
+//#define CPDEBUG
+/*
+static void jbd2_sequence_sync()
+{
+}
+*/
 /*
  * If the buffer is already part of the current transaction, then there
  * is nothing we need to do.  If it is already part of a prior
@@ -660,7 +668,7 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 	jbd_debug(5, "journal_head %p, force_copy %d\n", jh, force_copy);
 
 	JBUFFER_TRACE(jh, "entry");
-repeat:
+ repeat:
 	bh = jh2bh(jh);
 
 	/* @@@ Need to check for errors here at some point. */
@@ -674,6 +682,90 @@ repeat:
 	if (time_lock > HZ/10)
 		trace_jbd2_lock_buffer_stall(bh->b_bdev->bd_dev,
 			jiffies_to_msecs(time_lock));
+
+	/* UFS */
+
+#ifdef CPWORK
+	if (!(jh->b_transaction == transaction || jh->b_next_transaction == transaction) 
+	    && (
+		(!jh->b_transaction && jh->b_next_transaction) || 
+		(jh->b_transaction && jh->b_transaction != transaction && jh->b_next_transaction)
+		)
+	    ) {
+	  //	  if (jh->b_transaction && jh->b_transaction != transaction && tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	    //if (jh->b_transaction && jh->b_transaction->t_tid <= journal->j_commit_sequence && 
+	    //jh->b_transaction != journal->j_committing_transaction && 
+	    // jh->b_transaction->t_tid > journal->j_commit_sequence) {
+	  //	    && tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+
+	    read_lock(&journal->j_state_lock);
+	    if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	      wake_up(&journal->j_wait_cpsetup);
+	      read_unlock(&journal->j_state_lock);
+	      unlock_buffer(bh);
+	      jbd_unlock_bh_state(bh);
+	      wait_event(journal->j_wait_done_cpsetup, !tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence));
+	      goto repeat;
+	    }
+	    read_unlock(&journal->j_state_lock);
+	    //jbd_lock_bh_state(bh);
+	    //lock_buffer(bh);
+	    //read_lock(&journal->j_state_lock);
+	    //}
+	    //read_unlock(&journal->j_state_lock);
+	  }
+	//	}
+#endif
+#ifdef CPDEBUG
+	if (jh->b_transaction && jh->b_transaction->t_tid < journal->j_cpsetup_sequence)
+	  printk(KERN_ERR "UFS: %s: unhandled tid error\n", __func__);
+	if (jh->b_next_transaction && jh->b_next_transaction->t_tid < journal->j_cpsetup_sequence)
+	  printk(KERN_ERR "UFS: %s: unhandled next tid error\n", __func__);
+
+#endif
+	/*
+	if (buffer_dirty(bh)) {
+	  if (!(jh->b_transaction == transaction || jh->b_transaction == journal->j_committing_transaction)) {	    
+	    unlock_buffer(bh);
+	    jbd_unlock_bh_state(bh);
+	    printk(KERN_ERR "UFS: %s: state 1\n", __func__);
+	    goto repeat;
+	  }
+	  if (jh->b_transaction && (jh->b_next_transaction != transaction)) {
+	    unlock_buffer(bh);
+	    jbd_unlock_bh_state(bh);
+	    printk(KERN_ERR "UFS: %s: state 2\n", __func__);
+	    goto repeat;	    
+	  }
+	}
+	if (!(jh->b_transaction == transaction || jh->b_next_transaction == transaction)) {
+	  if (jh->b_frozen_data && jh->b_next_transaction) {
+
+	    //wait_event(journal->j_wait_done_cpsetup, !tid_gt(jh->b_next_transaction->t_tid, journal->j_cpsetup_sequence));
+	    unlock_buffer(bh);
+	    jbd_unlock_bh_state(bh);
+	    printk(KERN_ERR "UFS: %s: state 3\n", __func__);
+	    goto repeat;
+
+	  } else {
+	    if (jh->b_transaction && jh->b_transaction != transaction && 
+		(jh->b_next_transaction || jh->b_transaction != journal->j_committing_transaction)) {
+	      unlock_buffer(bh);
+	      jbd_unlock_bh_state(bh);
+	      printk(KERN_ERR "UFS: %s: state 4\n", __func__);
+	      goto repeat;
+
+	    }	    
+	    if (!jh->b_transaction && jh->b_next_transaction) {
+	      unlock_buffer(bh);
+	      jbd_unlock_bh_state(bh);
+	      printk(KERN_ERR "UFS: %s: state 5\n", __func__);
+	      goto repeat;
+	      
+	    }
+	  }
+	}
+	*/
 
 	/* We now hold the buffer lock so it is safe to query the buffer
 	 * state.  Is the buffer dirty?
@@ -694,13 +786,23 @@ repeat:
 		 * transaction or the existing committing transaction?
 		 */
 		if (jh->b_transaction) {
+		  /* UFS */
+
+		  /*
 			J_ASSERT_JH(jh,
 				jh->b_transaction == transaction ||
 				jh->b_transaction ==
 					journal->j_committing_transaction);
-			if (jh->b_next_transaction)
+		  */
+		  
+			if (jh->b_next_transaction) {			  				
+			  if (jh->b_next_transaction != transaction) {
+			    unlock_buffer(bh);			  
+			    goto wait;
+			  }
 				J_ASSERT_JH(jh, jh->b_next_transaction ==
 							transaction);
+			}
 			warn_dirty_buffer(bh);
 		}
 		/*
@@ -742,7 +844,12 @@ repeat:
 	 */
 	if (jh->b_frozen_data) {
 		JBUFFER_TRACE(jh, "has frozen data");
-		J_ASSERT_JH(jh, jh->b_next_transaction == NULL);
+		/* UFS */
+		if (jh->b_next_transaction != NULL) {
+		  jbd_unlock_bh_state(bh);
+		  goto wait;
+		}
+		/* J_ASSERT_JH(jh, jh->b_next_transaction == NULL); */
 		jh->b_next_transaction = transaction;
 		goto done;
 	}
@@ -751,9 +858,32 @@ repeat:
 
 	if (jh->b_transaction && jh->b_transaction != transaction) {
 		JBUFFER_TRACE(jh, "owned by older transaction");
+		/* UFS */
+		if (jh->b_next_transaction != NULL) {		  
+		  goto wait;
+		}
 		J_ASSERT_JH(jh, jh->b_next_transaction == NULL);
+		/*
+		if (jh->b_transaction != journal->j_committing_transaction && 
+
+jh->b_transaction == j_committing_transaction || journal->j_commit_sequence == j_cpsetup_sequence
+
+j_cpsetup_sequence < jh->b_transaction->t_tid <= j_commit_sequence
+
+
+journal->j_commit_sequence != journal->j_cpsetup_sequence)
+		*/
+		printk(KERN_ERR "UFS: tid = %u, commit = %u, cpsetup = %u\n", jh->b_transaction->t_tid, journal->j_commit_sequence, journal->j_cpsetup_sequence);
+		//if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence))
+		/*	if (!tid_geq(jh->b_transaction->t_tid, journal->j_commit_sequence))
+		  goto wait;
+		*/
+		/* UFS */
+	
+		/*
 		J_ASSERT_JH(jh, jh->b_transaction ==
 					journal->j_committing_transaction);
+		*/
 
 		/* There is one case we have to be very careful about.
 		 * If the committing transaction is currently writing
@@ -820,6 +950,8 @@ repeat:
 	 */
 	if (!jh->b_transaction) {
 		JBUFFER_TRACE(jh, "no transaction");
+		if (jh->b_next_transaction)
+		  goto wait;
 		J_ASSERT_JH(jh, !jh->b_next_transaction);
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
 		spin_lock(&journal->j_list_lock);
@@ -864,6 +996,32 @@ out:
 
 	JBUFFER_TRACE(jh, "exit");
 	return error;
+ wait:	
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: goto wait\n", __func__);
+#endif
+		{
+	  tid_t tid;
+	jbd_unlock_bh_state(bh);
+	read_lock(&journal->j_state_lock);
+	
+	if (jh->b_transaction)
+	  tid = jh->b_transaction->t_tid;
+	else if (jh->b_next_transaction){
+  tid = jh->b_next_transaction->t_tid;
+}
+	else
+	  tid = journal->j_commit_sequence;
+	
+	if (tid_gt(tid, journal->j_cpsetup_sequence)) {
+  
+	  wake_up(&journal->j_wait_cpsetup);
+	  read_unlock(&journal->j_state_lock);	
+	  wait_event(journal->j_wait_done_cpsetup, !tid_gt(tid, journal->j_cpsetup_sequence));	  
+	}
+	read_unlock(&journal->j_state_lock);
+	}
+	goto repeat;	
 }
 
 /**
@@ -918,7 +1076,32 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 	int err;
 
 	jbd_debug(5, "journal_head %p\n", jh);
+
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: \n", __func__);
+#endif
+
+#ifdef CPSETUPWAIT_
+	/* UFS */
+	/*	while (jh->b_transaction && jh->b_next_transaction) {
+	  wake_up(&journal->j_wait_cpsetup);	  
+	  wait_event(journal->j_wait_done_cpsetup, !tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence));
+	}
+	*/
+
+ repeat:
+	if (jh->b_transaction && 
+	    jh->b_transaction != journal->j_running_transaction && jh->b_transaction->t_tid > journal->j_cpsetup_sequence) {
+	  wake_up(&journal->j_wait_cpsetup);
+	  wait_event(journal->j_wait_done_cpsetup, !tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence));
+	  goto repeat;
+	}
+#endif
+
 	err = -EROFS;
+#ifdef CPSETUPWAIT
+ repeat:
+#endif
 	if (is_handle_aborted(handle))
 		goto out;
 	err = 0;
@@ -933,11 +1116,33 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 	 */
 	jbd_lock_bh_state(bh);
 	spin_lock(&journal->j_list_lock);
+	/* UFS */
+#ifdef CPSETUPWAIT
+	read_lock(&journal->j_state_lock);
+	if ((jh->b_transaction && jh->b_transaction != transaction && jh->b_jlist != BJ_Forget) || jh->b_next_transaction) {
+	tid_t tid = jh->b_transaction ? jh->b_transaction->t_tid : jh->b_next_transaction->t_tid;
+  //tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: next_tx exist\n", __func__);
+#endif
+
+	  /* UFS: wait shadow to forget */
+	  wake_up(&journal->j_wait_cpsetup);
+	  jbd_unlock_bh_state(bh);
+	  spin_unlock(&journal->j_list_lock);
+	  read_unlock(&journal->j_state_lock);
+	  wait_event(journal->j_wait_done_cpsetup, !tid_gt(tid, journal->j_cpsetup_sequence));
+	  goto repeat;
+	  
+	}
+	read_unlock(&journal->j_state_lock);
+#endif
+	/*
 	J_ASSERT_JH(jh, (jh->b_transaction == transaction ||
 		jh->b_transaction == NULL ||
 		(jh->b_transaction == journal->j_committing_transaction &&
 			  jh->b_jlist == BJ_Forget)));
-
+	*/
 	J_ASSERT_JH(jh, jh->b_next_transaction == NULL);
 	J_ASSERT_JH(jh, buffer_locked(jh2bh(jh)));
 
@@ -956,7 +1161,12 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
 		__jbd2_journal_file_buffer(jh, transaction, BJ_Reserved);
-	} else if (jh->b_transaction == journal->j_committing_transaction) {
+	} else if (jh->b_transaction == journal->j_committing_transaction || jh->b_transaction != transaction
+    //        || (!journal->j_committing_transaction && jh->b_transaction->t_tid <= journal->j_cpsetup_sequence) 
+/*||
+		   (!journal->j_committing_transaction && jh->b_transaction->t_tid == journal->j_cpsetup_sequence) ||
+		   tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)*/) { /* UFS */
+		   //jh->b_transaction == journal->j_committing_transaction) {
 		/* first access by this transaction */
 		jh->b_modified = 0;
 
@@ -1130,6 +1340,9 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 	struct journal_head *jh;
 	int ret = 0;
 
+#ifdef CPSETUPWAIT_deadlock
+ repeat:
+#endif
 	if (is_handle_aborted(handle))
 		goto out;
 	jh = jbd2_journal_grab_journal_head(bh);
@@ -1141,6 +1354,28 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 	JBUFFER_TRACE(jh, "entry");
 
 	jbd_lock_bh_state(bh);
+
+	/* UFS */
+#ifdef CPSETUPWAIT_deadlock
+
+	if (jh->b_transaction && tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	  //	    !tid_gt(jh->b_transaction->t_tid, journal->j_commit_sequence) &&
+	  //	    tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	  //&& jh->b_transaction->t_tid > journal->j_cpsetup_sequence) {
+
+	  read_lock(&journal->j_state_lock);
+	  if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	    wake_up(&journal->j_wait_cpsetup);
+	    read_unlock(&journal->j_state_lock);
+	    jbd2_journal_put_journal_head(jh);
+	   
+	    jbd_unlock_bh_state(bh);
+	    wait_event(journal->j_wait_done_cpsetup, !tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence));
+	    goto repeat;
+	  }
+	  read_unlock(&journal->j_state_lock);
+	}
+#endif
 
 	if (jh->b_modified == 0) {
 		/*
@@ -1190,11 +1425,11 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 	 * be committing, and will be refiled once the commit completes:
 	 * leave it alone for now.
 	 */
-	if (jh->b_transaction != transaction) {
+	if (jh->b_transaction != transaction) {	  
 		JBUFFER_TRACE(jh, "already on other transaction");
+		/*
 		if (unlikely(jh->b_transaction !=
 			     journal->j_committing_transaction)) {
-		  /*
 			printk(KERN_EMERG "JBD: %s: "
 			       "jh->b_transaction (%llu, %p, %u) != "
 			       "journal->j_committing_transaction (%p, %u)",
@@ -1206,8 +1441,8 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 			       journal->j_committing_transaction ?
 			       journal->j_committing_transaction->t_tid : 0);
 			ret = -EINVAL;
-		  */
-		}
+		}	
+		*/
 		if (unlikely(jh->b_next_transaction != transaction)) {
 			printk(KERN_EMERG "JBD: %s: "
 			       "jh->b_next_transaction (%llu, %p, %u) != "
@@ -1268,6 +1503,12 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 
 	BUFFER_TRACE(bh, "entry");
 
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: \n", __func__);
+#endif
+#ifdef CPSETUPWAIT2
+ repeat:
+#endif
 	jbd_lock_bh_state(bh);
 	spin_lock(&journal->j_list_lock);
 
@@ -1282,6 +1523,28 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 		err = -EIO;
 		goto not_jbd;
 	}
+
+	/* UFS */
+#ifdef CPSETUPWAIT2
+
+	
+	if (jh->b_transaction && jh->b_transaction != transaction && jh->b_next_transaction) { //b_transaction->t_tid > journal->j_cpsetup_sequence) {	    
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: next_tx exist\n", __func__);
+#endif
+	  read_lock(&journal->j_state_lock);
+	  if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	    tid_t tid = jh->b_transaction->t_tid;
+	    wake_up(&journal->j_wait_cpsetup);
+	    read_unlock(&journal->j_state_lock);
+	    spin_unlock(&journal->j_list_lock);
+	    jbd_unlock_bh_state(bh);
+	    wait_event(journal->j_wait_done_cpsetup, !tid_gt(tid, journal->j_cpsetup_sequence));
+	    goto repeat;
+	  }
+	  read_unlock(&journal->j_state_lock);
+	}
+#endif
 
 	/* keep track of whether or not this transaction modified us */
 	was_modified = jh->b_modified;
@@ -1335,8 +1598,11 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 			}
 		}
 	} else if (jh->b_transaction) {
+	  /* UFS */
+	  /*
 		J_ASSERT_JH(jh, (jh->b_transaction ==
 				 journal->j_committing_transaction));
+	  */
 		/* However, if the buffer is still owned by a prior
 		 * (committing) transaction, we can't drop it yet... */
 		JBUFFER_TRACE(jh, "belongs to older transaction");
@@ -1875,13 +2141,17 @@ static int journal_unmap_buffer(journal_t *journal, struct buffer_head *bh,
 	int may_free = 1;
 
 	BUFFER_TRACE(bh, "entry");
-
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: \n", __func__);
+#endif
 	/*
 	 * It is safe to proceed here without the j_list_lock because the
 	 * buffers cannot be stolen by try_to_free_buffers as long as we are
 	 * holding the page lock. --sct
 	 */
-
+#ifdef CPSETUPWAIT
+ repeat:
+#endif
 	if (!buffer_jbd(bh))
 		goto zap_buffer_unlocked;
 
@@ -1893,6 +2163,26 @@ static int journal_unmap_buffer(journal_t *journal, struct buffer_head *bh,
 	jh = jbd2_journal_grab_journal_head(bh);
 	if (!jh)
 		goto zap_buffer_no_jh;
+
+	/* UFS */
+	
+#ifdef CPSETUPWAIT
+	  //&& jh->b_transaction->t_tid > journal->j_cpsetup_sequence) {
+	if (jh->b_transaction && !tid_gt(jh->b_transaction->t_tid, journal->j_commit_sequence) && tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+          tid_t tid = jh->b_transaction->t_tid;
+	  read_lock(&journal->j_state_lock);
+	  if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	    wake_up(&journal->j_wait_cpsetup);
+	    read_unlock(&journal->j_state_lock);
+	    jbd_unlock_bh_state(bh);
+	    spin_unlock(&journal->j_list_lock);	  
+	    wait_event(journal->j_wait_done_cpsetup, !tid_geq(tid, journal->j_commit_sequence));
+	    goto repeat;
+	  }
+	  read_unlock(&journal->j_state_lock);
+	}
+	
+#endif
 
 	/*
 	 * We cannot remove the buffer from checkpoint lists until the
@@ -1956,13 +2246,34 @@ static int journal_unmap_buffer(journal_t *journal, struct buffer_head *bh,
 					journal->j_committing_transaction);
 				goto zap_buffer;
 			} else {
+			  /* UFS */
+			  /*
+			  spin_lock(&journal->j_cplist_lock);
+			  if (journal->j_cpsetup_transactions) {
+			    may_free = __dispose_buffer(jh,
+							journal->j_cpsetup_transactions);
+			    spin_unlock(&journal->j_cplist_lock);
+			    goto zap_buffer;
+			  }
+			  spin_unlock(&journal->j_cplist_lock);
+			  */
+			 
 				/* The orphan record's transaction has
-				 * committed.  We can cleanse this buffer */
-				clear_buffer_jbddirty(bh);
+				 * committed.  We can cleanse this buffer */			 
+			        clear_buffer_jbddirty(bh);
 				goto zap_buffer;
 			}
 		}
-	} else if (transaction == journal->j_committing_transaction) {
+		/* UFS: transaction != NULL */
+	} else if (transaction == journal->j_committing_transaction || !journal->j_running_transaction ||
+		   transaction != journal->j_running_transaction
+		   //		    journal->j_committing_transaction == NULL && journal->j_commit_sequence != journal->j_cpsetup_sequence
+		    
+		   //	   (!journal->j_committing_transaction && transaction->t_tid > journal->j_cpsetup_sequence && transaction->t_tid <= journal->j_commit_sequence) 
+		   /*||
+		   (!journal->j_committing_transaction && transaction->t_tid == journal->j_cpsetup_sequence) ||
+		   tid_gt(transaction->t_tid, journal->j_cpsetup_sequence)*/) { /* UFS */
+	  //transaction == journal->j_committing_transaction) {
 		JBUFFER_TRACE(jh, "on committing transaction");
 		/*
 		 * The buffer is committing, we simply cannot touch
@@ -2242,9 +2553,14 @@ int jbd2_journal_file_inode(handle_t *handle, struct jbd2_inode *jinode)
 {
 	transaction_t *transaction = handle->h_transaction;
 	journal_t *journal = transaction->t_journal;
+#ifdef CPSETUPWAIT
+repeat:
+#endif
 
 	if (is_handle_aborted(handle))
 		return -EIO;
+
+	
 
 	jbd_debug(4, "Adding inode %lu, tid:%d\n", jinode->i_vfs_inode->i_ino,
 			transaction->t_tid);
@@ -2279,12 +2595,42 @@ int jbd2_journal_file_inode(handle_t *handle, struct jbd2_inode *jinode)
 	 */
 	if (!transaction->t_need_data_flush)
 		transaction->t_need_data_flush = 1;
+
+
+	/* UFS */
+
+#ifdef CPSETUPWAIT
+	//if (!(jinode->i_transaction == transaction || jinode->i_next_transaction == transaction) &&
+	//	    jinode->i_transaction && jinode->i_next_transaction) {
+	  //	if (jinode->i_transaction && !tid_gt(jinode->i_transaction->t_tid, journal->j_commit_sequence) && tid_gt(jinode->i_transaction->t_tid, journal->j_cpsetup_sequence)) {
+	    //&& jh->b_transaction->t_tid > journal->j_cpsetup_sequence) {
+	//	if (jinode->i_transaction && 
+	//!(jinode->i_transaction == journal->j_committing_transaction || jinode->i_transaction != transaction) 
+	//|| !jinode->i_transaction
+	if (jinode->i_next_transaction) {
+	  //	    read_lock(&journal->j_state_lock);
+	  //if (tid_gt(jinode->i_next_transaction->t_tid, journal->j_cpsetup_sequence)) {	      
+	  //  read_unlock(&journal->j_state_lock);	   
+	      spin_unlock(&journal->j_list_lock);
+	      wake_up(&journal->j_wait_cpsetup);
+	      wait_event(journal->j_wait_done_cpsetup, !jinode->i_next_transaction);
+	      goto repeat;
+	      //  }
+	// read_unlock(&journal->j_state_lock);
+	  }
+	  //}
+#endif
+
+
 	/* On some different transaction's list - should be
 	 * the committing one */
 	if (jinode->i_transaction) {
-		J_ASSERT(jinode->i_next_transaction == NULL);
+		J_ASSERT(jinode->i_next_transaction == NULL);	    
+		/* UFS */
+		/* 
 		J_ASSERT(jinode->i_transaction ==
 					journal->j_committing_transaction);
+		*/
 		jinode->i_next_transaction = transaction;
 		goto done;
 	}

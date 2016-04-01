@@ -333,6 +333,7 @@ BUFFER_FNS(Verified, verified)
 #include <linux/jbd_common.h>
 
 #define J_ASSERT(assert)	BUG_ON(!(assert))
+//#define J_ASSERT(assert)	BUG_ON(!(assert) && 0)
 
 #define J_ASSERT_BH(bh, expr)	J_ASSERT(expr)
 #define J_ASSERT_JH(jh, expr)	J_ASSERT(expr)
@@ -1242,6 +1243,11 @@ extern int	jbd2_journal_test_revoke(journal_t *, unsigned long long, tid_t);
 extern void	jbd2_journal_clear_revoke(journal_t *);
 extern void	jbd2_journal_switch_revoke_table(journal_t *journal);
 extern void	jbd2_clear_buffer_revoked_flags(journal_t *journal);
+
+
+/* UFS */
+int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid);
+int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid);
 
 /*
  * The log thread user interface:

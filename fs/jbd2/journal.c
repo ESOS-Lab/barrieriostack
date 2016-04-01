@@ -813,6 +813,43 @@ int jbd2_log_wait_commit(journal_t *journal, tid_t tid)
 	}
 	return err;
 }
+/* UFS */
+int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid)
+{
+	int err = 0;
+
+	read_lock(&journal->j_state_lock);
+	/*
+#ifdef CONFIG_JBD2_DEBUG
+	if (!tid_geq(journal->j_commit_request, tid)) {
+		printk(KERN_EMERG
+		       "%s: error: j_commit_request=%d, tid=%d\n",
+		       __func__, journal->j_commit_request, tid);
+	}
+#endif
+	*/
+	if (tid_gt(tid, journal->j_commit_sequence)) {
+	  jbd2_complete_transaction(journal, tid);
+	}
+
+	while (tid_gt(tid, journal->j_commit_sequence)) {
+		jbd_debug(1, "JBD2: want %d, j_commit_sequence=%d\n",
+				  tid, journal->j_commit_sequence);
+		wake_up(&journal->j_wait_cpsetup);
+		read_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup,
+				!tid_gt(tid, journal->j_cpsetup_sequence));
+		read_lock(&journal->j_state_lock);
+	}
+	read_unlock(&journal->j_state_lock);
+
+	if (unlikely(is_journal_aborted(journal))) {
+		printk(KERN_EMERG "journal commit I/O error\n");
+		err = -EIO;
+	}
+	return err;
+}
+EXPORT_SYMBOL(jbd2_log_wait_cpsetup);
 
 /*
  * When this function returns the transaction corresponding to tid
@@ -844,6 +881,15 @@ wait_commit:
 	return jbd2_log_wait_commit(journal, tid);
 }
 EXPORT_SYMBOL(jbd2_complete_transaction);
+
+/* UFS */
+int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
+{
+  jbd2_complete_transaction(journal, tid);
+  return jbd2_log_wait_cpsetup(journal, tid);
+}
+EXPORT_SYMBOL(jbd2_complete_cpsetup_transaction);
+
 
 /*
  * Log buffer allocation routines:
@@ -1397,6 +1443,10 @@ static int journal_reset(journal_t *journal)
 	journal->j_tail_sequence = journal->j_transaction_sequence;
 	journal->j_commit_sequence = journal->j_transaction_sequence - 1;
 	journal->j_commit_request = journal->j_commit_sequence;
+	/* UFS */
+	journal->j_cpsetup_request = journal->j_commit_sequence;
+	journal->j_cpsetup_sequence = journal->j_commit_sequence - 1;
+
 
 	journal->j_max_transaction_buffers = journal->j_maxlen / 4;
 
