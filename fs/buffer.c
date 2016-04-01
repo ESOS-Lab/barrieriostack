@@ -3106,7 +3106,6 @@ int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_fl
 
 	bio->bi_end_io = end_bio_bh_io_sync;
 	bio->bi_private = bh;
-	bio->bi_flags |= bio_flags;
 
 	/* Take care of bh's that straddle the end of the device */
 	guard_bh_eod(rw, bio, bh);

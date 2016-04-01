@@ -551,6 +551,10 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 	    !blk_write_same_mergeable(rq->bio, bio))
 		return false;
 
+	/* UFS */
+	if ((rq->cmd_bflags & REQ_BARRIER) && (bio->bi_rw & REQ_BARRIER))
+	  return false;
+
 	return true;
 }
 

@@ -1480,7 +1480,7 @@ struct task_struct {
 	/* UFS: epoch structure for task */
 	struct epoch *epoch;
 	unsigned int barrier_fail;
-	//unsigned int epoch_fail;
+	unsigned int epoch_fail;
 	//struct list_head epoch_pending;
 	//struct list_head epoch_dispatch;
 	//struct list_head epoch_complte;

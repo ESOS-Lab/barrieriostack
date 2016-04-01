@@ -29,6 +29,7 @@
 #include <linux/bitops.h>
 #include <trace/events/jbd2.h>
 
+#define UFSBARRIER
 /*
  * IO end handler for temporary buffer_heads handling writes to the journal.
  */
@@ -95,14 +96,8 @@ static void journal_end_logbuf_io_async(struct buffer_head *bh, int uptodate)
 		clear_bit_unlock(BH_Shadow, &orig_bh->b_state);
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
-	}
-	//	wake_up_buffer_dispatch(bh);
+	}	
 	unlock_buffer(bh);
-	/*
-	 * UFS
-	 */
-	//clear_buffer_jwrite(bh); 
-	//__brelse(bh);
 }
 /* 
  * UFS: IO end handlers for io_bufs
@@ -111,8 +106,6 @@ static void journal_end_logbuf_io_async(struct buffer_head *bh, int uptodate)
 static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 {
 	struct buffer_head *orig_bh = bh->b_private;
-
-	struct journal_head *jh;
 
 	BUFFER_TRACE(bh, "");
 	if (uptodate)
@@ -132,46 +125,6 @@ static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 	
 	//jbd2_unfile_log_bh(bh);
 	unlock_buffer(bh);
-	return;
-
-		/*
-		 * The list contains temporary buffer heads created by
-		 * jbd2_journal_write_metadata_buffer().
-		 */
-		//BUFFER_TRACE(bh, "dumping temporary bh");
-		//__brelse(bh);
-		//J_ASSERT_BH(bh, atomic_read(&bh->b_count) == 0);
-		//free_buffer_head(bh);
-
-		/* We also have to refile the corresponding shadowed buffer */
-
-
-		jh = bh2jh(orig_bh);
-		//jh = jh->b_transaction->t_shadow_list->b_tprev;//commit_transaction->t_shadow_list->b_tprev;
-		//bh = jh2bh(jh);
-		 clear_buffer_jwrite(orig_bh);
-		//J_ASSERT_BH(bh, buffer_jbddirty(bh));
-		//J_ASSERT_BH(bh, !buffer_shadow(bh));
-
-		/* The metadata is now released for reuse, but we need
-                   to remember it against this transaction so that when
-                   we finally commit, we can do any checkpointing
-                   required. */
-		//JBUFFER_TRACE(jh, "file as BJ_Forget");
-
-		jbd2_journal_file_buffer(jh, jh->b_transaction, BJ_Forget);
-
-
-		//JBUFFER_TRACE(jh, "brelse shadowed buffer");
-
-		__brelse(orig_bh);
-
-		//unlock_buffer(bh);
-	
-	__brelse(bh);
-	if (atomic_read(&bh->b_count)==0)
-		free_buffer_head(bh);
-	
 }
 /* UFS: IO end handler for commit record */
 
@@ -191,14 +144,10 @@ static void journal_end_commit_record_io_async(struct buffer_head *bh, int uptod
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	//	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
-
 	/*
 	 * UFS
-	 */
-
-	
+	 */	
 	//wake_up(&jh->b_transaction->t_journal->j_wait_cpsetup);
 }
 
@@ -321,9 +270,17 @@ static int journal_submit_commit_record(journal_t *journal,
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !JBD2_HAS_INCOMPAT_FEATURE(journal,
 				       JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT))
-		ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
+#ifdef UFSBARRIER
+	  ret = submit_bh64(WRITE_BARRIER, bh);
+#else
+	  ret = submit_bh(WRITE_SYNC | WRITE_FLUSH_FUA, bh);
+#endif
 	else
-		ret = submit_bh(WRITE_SYNC, bh);
+#ifdef UFSBARRIER
+	  ret = submit_bh64(WRITE_BARRIER, bh);
+#else
+	  ret = submit_bh(WRITE_SYNC, bh);
+#endif
 
 	*cbh = bh;
 	return ret;
@@ -373,7 +330,7 @@ static int journal_submit_inode_data_buffers(struct address_space *mapping)
 {
 	int ret;
 	struct writeback_control wbc = {
-		.sync_mode =  WB_SYNC_ALL,
+       	        .sync_mode =  WB_ORDERED_ALL, /* UFS: WB_SYNC_ALL,*/
 		.nr_to_write = mapping->nrpages * 2,
 		.range_start = 0,
 		.range_end = i_size_read(mapping->host),
@@ -1760,8 +1717,8 @@ start_journal_io:
 				/* UFS */
 				if (bh->b_end_io != journal_end_iobuf_io_async)
 				  bh->b_end_io = journal_end_logbuf_io_async;  
-				submit_bh(WRITE_SYNC, bh);
-				/*
+				//submit_bh(WRITE_SYNC, bh);
+				
 				if (commit_transaction->t_buffers != NULL) {
 				  submit_bh64(WRITE_ORDERED, bh);
 				} else if (i == bufs - 1 &&
@@ -1770,7 +1727,7 @@ start_journal_io:
 				} else {
 				  submit_bh64(WRITE_ORDERED, bh);
 				}
-				*/
+				
 				
 				//submit_bh(WRITE_SYNC, bh);
 			}

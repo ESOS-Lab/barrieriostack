@@ -368,27 +368,35 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 	if (rq->cmd_bflags & REQ_ORDERED) {
 		struct epoch *epoch;
 		struct epoch_link *link;
-		if (!rq->epoch_link)
+		if (!rq->epoch_link) {
+		        goto insert;
 			BUG();
+		}
 		link = rq->epoch_link;
 		while (link) {
 			epoch = link->el_epoch;
-			if (!epoch->pending)
+			if (!epoch->pending) {
+			  //break;
 				BUG();
+			}
 			epoch->pending--;
 			epoch->dispatch++;
 			if (epoch->pending == 0 && epoch->barrier) {
-				rq->cmd_bflags |= REQ_BARRIER;
+			  printk(KERN_ERR "UFS: %s: REQ: BARRIER\n", __func__);
+			  rq->cmd_bflags |= REQ_BARRIER;
 				mempool_free(epoch, q->epoch_pool);
 			}
 			link = rq->epoch_link->el_next;
 			/* ? */
+			/*
 			if (rq->epoch_link == rq->epoch_link_tail)
 				rq->epoch_link_tail = link;
+			*/
 			mempool_free(rq->epoch_link, q->epoch_link_pool);
 			rq->epoch_link = link;
 		}
 	}
+insert:
 	list_for_each_prev(entry, &q->queue_head) {
 		struct request *pos = list_entry_rq(entry);
 

@@ -124,7 +124,16 @@ static struct kmem_cache *task_struct_cachep;
 
 static inline struct task_struct *alloc_task_struct_node(int node)
 {
+        /* UFS */
+        struct task_struct *p;
+	p = kmem_cache_alloc_node(task_struct_cachep, GFP_KERNEL, node);
+	p->epoch = 0;
+	p->barrier_fail = 0;
+	p->epoch_fail = 0;
+	return p;
+	/* Original Code:
 	return kmem_cache_alloc_node(task_struct_cachep, GFP_KERNEL, node);
+	*/
 }
 
 static inline void free_task_struct(struct task_struct *tsk)
