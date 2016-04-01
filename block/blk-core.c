@@ -3170,13 +3170,18 @@ void blk_issue_barrier_plug(struct blk_plug *plug)
 }
 EXPORT_SYMBOL(blk_issue_barrier_plug);
 
+/* UFS */
 void blk_request_dispatched(struct request *req)
 {
 	struct bio *req_bio;
 	if (req->cmd_type != REQ_TYPE_FS)
 		return;
+	if (!req->__data_len)
+	  return;
+	/*
 	if (!(req->cmd_bflags & REQ_ORDERED))
 		return;
+	*/
 	req_bio = req->bio;
 	while (req_bio) {
 		int i;
@@ -3185,26 +3190,11 @@ void blk_request_dispatched(struct request *req)
 			break;
 		for (i=0; i < bio->bi_vcnt; i++) {
 			struct bio_vec *bvec = &bio->bi_io_vec[i];
-			struct page *page = bvec->bv_page;
-			struct buffer_head *bh, *head;
-			unsigned long flags;
-			
-			if (!page)
-				continue;
-			if (PagePrivate(page))
-				bh = (struct buffer_head *)page_private(page);
-			local_irq_save(flags);
-
-			if (bh) {
-				bh = head = page_buffers(page);
-				do {
-					wake_up_buffer_dispatch(bh);
-				} while ((bh = bh->b_this_page) != head);
-			}
-
-			local_irq_restore(flags);
-
-			end_page_dispatch(page);
+			struct page *page = bvec->bv_page;			
+			if (dispatch_bio_bh(bio))
+			  continue;
+			else if (page)
+			  end_page_dispatch(page);
 		}
 		req_bio = bio->bi_next;
 	}

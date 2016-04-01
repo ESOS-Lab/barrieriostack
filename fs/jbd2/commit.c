@@ -96,7 +96,7 @@ static void journal_end_logbuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	wake_up_buffer_dispatch(bh);
+	//	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
 	/*
 	 * UFS
@@ -124,7 +124,7 @@ static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	wake_up_buffer_dispatch(bh);
+	//	wake_up_buffer_dispatch(bh);
 	//unlock_buffer(bh);
 	/*
 	 * UFS
@@ -191,7 +191,7 @@ static void journal_end_commit_record_io_async(struct buffer_head *bh, int uptod
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	wake_up_buffer_dispatch(bh);
+	//	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
 
 	/*

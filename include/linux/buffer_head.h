@@ -198,6 +198,7 @@ void write_dirty_buffer(struct buffer_head *bh, int rw);
 int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags);
 int submit_bh(int, struct buffer_head *);
 /* UFS */
+int dispatch_bio_bh(struct bio *bio);
 int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_flags);
 int submit_bh64(long long rw, struct buffer_head *bh);
 

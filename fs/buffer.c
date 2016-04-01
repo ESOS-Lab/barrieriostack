@@ -3062,6 +3062,16 @@ EXPORT_SYMBOL(submit_bh);
 
 
 /* UFS */
+int dispatch_bio_bh(struct bio *bio)
+{
+  if (bio->bi_end_io == end_bio_bh_io_sync && bio->bi_private) {
+    wake_up_buffer_dispatch(bio->bi_private);
+    return 1;
+  }
+  return 0;
+}
+EXPORT_SYMBOL(dispatch_bio_bh);
+
 int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_flags)
 {
 	struct bio *bio;
