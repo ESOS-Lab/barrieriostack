@@ -1380,8 +1380,15 @@ static inline void bio_epoch_merge(struct request_queue *q, struct request *req,
 				   struct bio *bio)
 {
 	if (bio->bi_rw & REQ_ORDERED) {
+#ifdef EPOCH_V1      
 		struct epoch *epoch = current->epoch;
 		struct epoch_link *link;
+#endif
+
+		req->cmd_bflags |= REQ_ORDERED;
+		if (bio->bi_rw & REQ_BARRIER)
+		  req->cmd_bflags |= REQ_BARRIER;
+#ifdef EPOCH_V1
 		if (!epoch) {
 			printk(KERN_ERR "UFS: no epoch\n");
 			blk_start_new_epoch(q);
@@ -1401,6 +1408,7 @@ static inline void bio_epoch_merge(struct request_queue *q, struct request *req,
 		}
 		else
 			req->epoch_link = req->epoch_link_tail = link;
+#endif
 		
 	}
 }
@@ -1522,8 +1530,10 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 	if (bio->bi_rw & REQ_RAHEAD)
 		req->cmd_flags |= REQ_FAILFAST_MASK;
 	/* UFS */
-	if (bio->bi_rw & REQ_ORDERED)
+	if (bio->bi_rw & REQ_ORDERED) {
 		req->cmd_bflags |= REQ_ORDERED;
+		bio->bi_epoch = current->epoch;
+	}
 	if (bio->bi_rw & REQ_BARRIER)
 		req->cmd_bflags |= REQ_BARRIER;
 
@@ -1558,6 +1568,26 @@ void blk_queue_bio(struct request_queue *q, struct bio *bio)
 		where = ELEVATOR_INSERT_FLUSH;
 		goto get_rq;
 	}
+
+
+	/* UFS */
+	if (bio->bi_rw & REQ_ORDERED) {
+	  if (!current->__epoch) {
+	    blk_start_epoch(q);
+	  }  
+	  get_epoch(current->__epoch);
+	  bio->bi_epoch = current->__epoch;
+	  bio->bi_epoch->pending++; //atomic_inc(&bio->bi_epoch->pending);
+
+	  if (bio->bi_rw & REQ_BARRIER) {
+#ifndef EPOCH_V1
+	    bio->bi_rw &= ~REQ_BARRIER;
+#endif
+	    blk_finish_epoch();
+	  }	  
+	}
+	
+
 
 	/*
 	 * Check if we can merge with the plugged list before grabbing
@@ -1615,6 +1645,29 @@ get_rq:
 
 	if (test_bit(QUEUE_FLAG_SAME_COMP, &q->queue_flags))
 		req->cpu = raw_smp_processor_id();
+
+#ifdef EPOCH_V1
+	/* UFS */
+	/* This request initialization for BARRIER */
+	if (req->cmd_bflags & REQ_ORDERED && !req->epoch_link) {
+	  struct epoch* current_epoch;
+	  struct epoch_link *link;
+	  if (!current->epoch) 
+	    blk_start_new_epoch(q);
+
+	  current_epoch = current->epoch;
+	  link = mempool_alloc(q->epoch_link_pool, GFP_NOFS);
+
+	  //if (!req->epoch_link)
+	  //  BUG();
+	  
+	  current_epoch->pending++;
+	  link->el_epoch = current_epoch;
+	  link->el_next = NULL;
+	  req->epoch_link = req->epoch_link_tail = link;
+	  
+	}
+#endif
 
 	plug = current->plug;
 	if (plug) {
@@ -1921,7 +1974,7 @@ EXPORT_SYMBOL(generic_make_request);
 void submit_bio(int rw, struct bio *bio)
 {
 	bio->bi_rw |= rw;
-
+	//bio->bi_rw &= ~(REQ_BARRIER | REQ_ORDERED);
 	/*
 	 * If it's a regular read/write or a barrier with data attached,
 	 * go through the normal accounting stuff before submission.
@@ -1961,6 +2014,7 @@ EXPORT_SYMBOL(submit_bio);
 void submit_bio64(long long rw, struct bio *bio)
 {
 	bio->bi_rw |= rw;
+	//bio->bi_rw &= ~(REQ_BARRIER | REQ_ORDERED);
 
 	if (bio_has_data(bio)) {
 		unsigned int count;
@@ -1987,6 +2041,8 @@ void submit_bio64(long long rw, struct bio *bio)
 				count);
 		}
 	}
+	
+
 
 	generic_make_request(bio);
 }
@@ -3067,7 +3123,9 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	struct request *rq;
 	LIST_HEAD(list);
 	unsigned int depth;
+#ifdef EPOCH_V1
 	unsigned int barrier = 0; /* UFS barrier insertion */
+#endif
 	BUG_ON(plug->magic != PLUG_MAGIC);
 
 	flush_plug_callbacks(plug, from_schedule);
@@ -3095,11 +3153,13 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 			 * This drops the queue lock
 			 */
 			if (q) {
+#ifdef EPOCH_V1
 				/* UFS */
 				if (barrier) {
 					blk_start_new_epoch(q);
 					barrier = 0;
 				}
+#endif
 				queue_unplugged(q, depth, from_schedule);
 			}
 			q = rq->q;
@@ -3120,6 +3180,7 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 		 */
 		if (rq->cmd_flags & (REQ_FLUSH | REQ_FUA))
 			__elv_add_request(q, rq, ELEVATOR_INSERT_FLUSH);
+#ifdef EPOCH_V1
 		else if (rq->cmd_bflags & REQ_ORDERED) { /* UFS */
 			if (rq->cmd_bflags & REQ_BARRIER) {
 				rq->cmd_bflags &= ~REQ_BARRIER;
@@ -3127,6 +3188,7 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 			}
 			__elv_add_request(q, rq, ELEVATOR_INSERT_SORT_MERGE);
 		}
+#endif
 		else
 			__elv_add_request(q, rq, ELEVATOR_INSERT_SORT_MERGE);
 
@@ -3137,8 +3199,10 @@ void blk_flush_plug_list(struct blk_plug *plug, bool from_schedule)
 	 * This drops the queue lock
 	 */
 	if (q) {
+#ifdef EPOCH_V1
 		if (barrier)
 			blk_start_new_epoch(q);
+#endif
 
 		queue_unplugged(q, depth, from_schedule);
 	}
@@ -3186,34 +3250,84 @@ void blk_request_dispatched(struct request *req)
 	while (req_bio) {
 		int i;
 		struct bio *bio = req_bio;
-		if (!bio->bi_size)
-			break;
+		if (bio->bi_size <= 0) {
+		        req_bio = bio->bi_next;
+			continue;
+		}
+		
+		if (req->cmd_bflags & REQ_ORDERED) {			  
+		  if (bio->bi_epoch) {
+		    struct epoch *epoch;
+		    epoch = bio->bi_epoch;
+		    epoch->complete++;
+		    put_epoch(epoch);
+		    if (atomic_read(&epoch->e_count) == 0)
+		      //kmem_cache_free(epoch_cachep, epoch);
+		      //if (epoch->task->__epoch == epoch)
+		      //epoch->task->__epoch = 0;
+		      mempool_free(epoch, epoch->q->epoch_pool);
+		  }
+		}
+		
+		if (dispatch_bio_bh(bio)) {
+		          req_bio = bio->bi_next;
+			  continue;	
+		}
 		for (i=0; i < bio->bi_vcnt; i++) {
 			struct bio_vec *bvec = &bio->bi_io_vec[i];
-			struct page *page = bvec->bv_page;			
-			if (dispatch_bio_bh(bio))
-			  continue;
-			else if (page)
+			struct page *page = bvec->bv_page;
+			if (page)
 			  end_page_dispatch(page);
 		}
 		req_bio = bio->bi_next;
 	}
+#ifdef EPOCH_V1
+	if (req->cmd_bflags & REQ_ORDERED) {
+		struct epoch *epoch;
+		struct epoch_link *link = 0;
+		if (req->epoch_link)
+		  link = req->epoch_link;
+
+		while (link) {
+			epoch = link->el_epoch;
+			//epoch->dispatch--;
+			epoch->complete++;
+			if (epoch && epoch->pending == 0 && epoch->dispatch == epoch->complete) {
+			  //printk(KERN_ERR "UFS: %s: REQ: DISPATCHED\n", __func__);			  
+			  mempool_free(epoch, req->q->epoch_pool);
+			}
+			mempool_free(link, req->q->epoch_link_pool);
+			
+			link = link->el_next;					
+			req->epoch_link = link;
+		}
+		req->epoch_link_tail = link;
+	}
+#endif
 }
 
 EXPORT_SYMBOL(blk_request_dispatched);
 
 void blk_start_new_epoch(struct request_queue *q)
 {
+  //struct epoch *new_epoch;
 	struct epoch *epoch = current->epoch;
 
-	if (epoch)
-		epoch->barrier = 1;
-
-	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);
+	if (!epoch) {
+	        epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);	
+	} else if (epoch->pending != 0) {
+                epoch->barrier = 1;		
+	        epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);	
+	} else if (epoch->pending == 0  && epoch->dispatch == epoch->complete) {
+	} else
+	        epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);	
+	
+	
 	epoch->task = current;
 	epoch->q = q;
 	epoch->barrier = 0;
 	epoch->pending = 0;
+	epoch->dispatch = 0;
 	epoch->complete = 0;
 	epoch->error = 0;
 	epoch->error_flags = 0;
@@ -3221,6 +3335,52 @@ void blk_start_new_epoch(struct request_queue *q)
 	current->epoch = epoch;	
 }
 EXPORT_SYMBOL(blk_start_new_epoch);
+
+void blk_start_epoch(struct request_queue *q)
+{
+  //struct epoch *new_epoch;
+  
+	struct epoch *epoch = current->__epoch;
+	if (epoch) {
+	  printk(KERN_ERR "UFS: %s: unfinished epoch!\n", __func__);
+	  return;
+	}
+	epoch = mempool_alloc(q->epoch_pool, GFP_NOFS);	
+	
+	//kmem_cache_zalloc(epoch_cachep, GFP_NOFS);
+	if (!epoch) {
+	  printk(KERN_ERR "UFS: %s: epoch alloc failed!\n", __func__);
+	  return;
+	}
+	memset(epoch, 0, sizeof(struct epoch));
+	epoch->task = current;
+	epoch->q = q;
+
+	epoch->barrier = 0;
+	epoch->pending = 0;
+	epoch->dispatch = 0;
+	epoch->complete = 0;
+	epoch->error = 0;
+	epoch->error_flags = 0;
+	
+
+	current->__epoch = epoch;	
+}
+EXPORT_SYMBOL(blk_start_epoch);
+
+void blk_finish_epoch(void)
+{
+  //struct epoch *new_epoch;
+	struct epoch *epoch = current->__epoch;
+
+	if (!epoch) {
+	        printk(KERN_ERR "UFS: %s: unstarted epoch!\n", __func__);
+		return;
+	}
+	epoch->barrier = 1;
+	current->__epoch = 0;	
+}
+EXPORT_SYMBOL(blk_finish_epoch);
 
 
 

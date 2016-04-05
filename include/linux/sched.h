@@ -76,6 +76,8 @@ struct epoch {
 	unsigned int error;
 	unsigned int error_flags;
 
+        atomic_t e_count;
+
 	//struct list_head list;
 };
 
@@ -1479,6 +1481,7 @@ struct task_struct {
 #endif
 	/* UFS: epoch structure for task */
 	struct epoch *epoch;
+        struct epoch *__epoch;
 	unsigned int barrier_fail;
 	unsigned int epoch_fail;
 	//struct list_head epoch_pending;

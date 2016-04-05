@@ -400,10 +400,15 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 			struct request *next)
 {
 	if (next->cmd_bflags & REQ_ORDERED) {
+	        req->cmd_bflags |= REQ_ORDERED;
+  	        if (next->cmd_bflags & REQ_BARRIER)
+		        req->cmd_bflags |= REQ_BARRIER;
+#ifdef EPOCH_V1
 		if (!next->epoch_link) {
 			printk(KERN_ERR "UFS: %s: next->epoch_link = NULL\n", __func__);
 			return;
 		}
+
 		if (req->cmd_bflags & REQ_ORDERED) {
 			if (!req->epoch_link) {
 				printk(KERN_ERR "UFS: %s: req->epoch_link = NULL\n", __func__);
@@ -415,6 +420,7 @@ void request_epoch_merge(struct request_queue *q, struct request *req,
 			req->epoch_link = next->epoch_link;
 			req->epoch_link_tail = next->epoch_link_tail;
 		}
+#endif
 	}
 }
 /*
@@ -552,8 +558,8 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 		return false;
 
 	/* UFS */
-	if ((rq->cmd_bflags & REQ_BARRIER) && (bio->bi_rw & REQ_BARRIER))
-	  return false;
+	//if ((rq->cmd_bflags & REQ_BARRIER) && (bio->bi_rw & REQ_BARRIER))
+	//  return false;
 
 	return true;
 }

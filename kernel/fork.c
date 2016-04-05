@@ -123,17 +123,8 @@ void __weak arch_release_task_struct(struct task_struct *tsk)
 static struct kmem_cache *task_struct_cachep;
 
 static inline struct task_struct *alloc_task_struct_node(int node)
-{
-        /* UFS */
-        struct task_struct *p;
-	p = kmem_cache_alloc_node(task_struct_cachep, GFP_KERNEL, node);
-	p->epoch = 0;
-	p->barrier_fail = 0;
-	p->epoch_fail = 0;
-	return p;
-	/* Original Code:
+{        
 	return kmem_cache_alloc_node(task_struct_cachep, GFP_KERNEL, node);
-	*/
 }
 
 static inline void free_task_struct(struct task_struct *tsk)
@@ -334,6 +325,12 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	err = arch_dup_task_struct(tsk, orig);
 	if (err)
 		goto free_ti;
+
+	/* UFS */
+	tsk->epoch = 0;
+	tsk->__epoch = 0;
+	tsk->barrier_fail = 0;
+	tsk->epoch_fail = 0;
 
 	tsk->stack = ti;
 #ifdef CONFIG_SECCOMP

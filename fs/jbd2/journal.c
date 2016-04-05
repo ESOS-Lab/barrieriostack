@@ -172,6 +172,12 @@ static int kjournald2(void *arg)
 	journal_t *journal = arg;
 	transaction_t *transaction;
 
+	int commit_iter = 1;
+	int cpsetup_iter = 1;
+	int commit = 0;
+	int cpsetup = 0;
+
+
 	/*
 	 * Set up an interval timer which can be used to trigger a commit wakeup
 	 * after the commit interval expires
@@ -198,19 +204,29 @@ loop:
 		journal->j_commit_sequence, journal->j_commit_request);
 
 	if (journal->j_commit_sequence != journal->j_commit_request) {
+
 		jbd_debug(1, "OK, requests differ\n");
 		write_unlock(&journal->j_state_lock);
 		del_timer_sync(&journal->j_commit_timer);
 		/* UFS */
 		//jbd2_journal_commit_transaction(journal);
 		jbd2_journal_barrier_commit_transaction(journal);
+		commit++;
+		if (journal->j_commit_sequence > journal->j_cpsetup_sequence)
 		{
 		  DEFINE_WAIT(wait);
+		  wake_up(&journal->j_wait_commit);
 		  prepare_to_wait(&journal->j_wait_done_cpsetup, &wait, TASK_INTERRUPTIBLE);
 		  schedule();		  
 		  finish_wait(&journal->j_wait_done_cpsetup, &wait);
-		}
-		wake_up(&journal->j_wait_done_commit);
+		  cpsetup++;
+		 }
+		if (cpsetup == cpsetup_iter)
+		  cpsetup = 0;
+		if (commit == commit_iter)
+		  commit = 0;
+
+		wake_up(&journal->j_wait_commit);
 		write_lock(&journal->j_state_lock);
 		goto loop;
 	}
@@ -295,16 +311,17 @@ loop:
 	if (journal->j_flags & JBD2_UNMOUNT)
 		goto end_loop;
 
-	//spin_lock(&journal->j_cplist_lock);
+	spin_lock(&journal->j_cplist_lock);
 	if (journal->j_cpsetup_transactions/*journal->j_commit_sequence != journal->j_cpsetup_sequence*/) {	  
 	  //write_unlock(&journal->j_state_lock);
-	  //spin_unlock(&journal->j_cplist_lock);
+	  spin_unlock(&journal->j_cplist_lock);
 		//if (journal->j_cpsetup_sequence < journal->j_commit_sequence)
 		//	;
 		jbd2_journal_cpsetup_transaction(journal);
 		//write_lock(&journal->j_state_lock);
 		goto loop;
 	}
+	spin_unlock(&journal->j_cplist_lock);
 	//commit_sequence  journal->j_commit_request);
 
 	wake_up(&journal->j_wait_done_cpsetup);
@@ -1034,7 +1051,7 @@ void __jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block)
 	 * space and if we lose sb update during power failure we'd replay
 	 * old transaction with possibly newly overwritten data.
 	 */
-	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_FUA);
+	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_ORDERED/*WRITE_FUA*/);
 	write_lock(&journal->j_state_lock);
 	freed = block - journal->j_tail;
 	if (block < journal->j_tail)
@@ -1517,6 +1534,11 @@ static void jbd2_write_superblock(journal_t *journal, long long write_op)
 	get_bh(bh);
 	bh->b_end_io = end_buffer_write_sync;
 	ret = submit_bh(write_op, bh);
+	/* UFS */
+	if (write_op & REQ_ORDERED) {
+	  wait_on_buffer_dispatch(bh);	  
+	  return;
+	}
 	wait_on_buffer(bh);
 	if (buffer_write_io_error(bh)) {
 		clear_buffer_write_io_error(bh);

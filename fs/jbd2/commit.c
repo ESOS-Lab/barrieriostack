@@ -1341,6 +1341,7 @@ restart_loop:
 }
 
 /* UFS */
+#define JBD2CPDEBUG
 void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 {
 	struct transaction_stats_s stats;
@@ -1373,6 +1374,10 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	LIST_HEAD(io_bufs);
 	LIST_HEAD(log_bufs);
 
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: start.\n", __func__);
+#endif
+
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal, JBD2_FEATURE_INCOMPAT_CSUM_V2))
 		csum_size = sizeof(struct jbd2_journal_block_tail);
 
@@ -1394,7 +1399,8 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 		jbd2_journal_update_sb_log_tail(journal,
 						journal->j_tail_sequence,
 						journal->j_tail,
-						WRITE_SYNC);
+						WRITE_ORDERED
+						/*WRITE_SYNC*/);
 		mutex_unlock(&journal->j_checkpoint_mutex);
 	} else {
 		jbd_debug(3, "superblock not updated\n");
@@ -1723,6 +1729,7 @@ start_journal_io:
 				  submit_bh64(WRITE_ORDERED, bh);
 				} else if (i == bufs - 1 &&
 					   commit_transaction->t_buffers == NULL) {
+				  //printk(KERN_ERR "UFS: ISSUE: BARREIR\n");
 				  submit_bh64(WRITE_BARRIER, bh);
 				} else {
 				  submit_bh64(WRITE_ORDERED, bh);
@@ -2031,6 +2038,9 @@ start_journal_io:
 	spin_unlock(&journal->j_cplist_lock);
 	wake_up(&journal->j_wait_cpsetup);
 	wake_up(&journal->j_wait_done_commit);
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: end.\n", __func__);
+#endif
 }
 
 void jbd2_journal_cpsetup_transaction(journal_t *journal)
@@ -2039,6 +2049,9 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 	struct journal_head *jh;
 	int err = 0;
 
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: start.\n", __func__);
+#endif
 	// journal->j_cpsetup_transactions should not be NULL
 	
 	//J_ASSERT(journal->j_cpsetup_transactions != NULL);
@@ -2314,4 +2327,7 @@ restart_loop:
 
 	/* UFS */
 	wake_up(&journal->j_wait_done_cpsetup);
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: end.\n", __func__);
+#endif
 }

@@ -630,8 +630,8 @@ static int sleep_on_shadow_bh(void *word)
 }
 
 
-//#define CPSETUPWAIT
-//#define CPDEBUG
+#define CPSETUPWAIT
+#define CPDEBUG
 /*
 static void jbd2_sequence_sync()
 {
@@ -658,7 +658,9 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 	char *frozen_buffer = NULL;
 	int need_copy = 0;
 	unsigned long start_lock, time_lock;
-
+#ifdef CPDEBUG
+	//printk(KERN_ERR "UFS: %s start.\n", __func__);
+#endif
 	if (is_handle_aborted(handle))
 		return -EROFS;
 
@@ -796,12 +798,15 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 		  */
 		  
 			if (jh->b_next_transaction) {			  				
+			  /*
 			  if (jh->b_next_transaction != transaction) {
 			    unlock_buffer(bh);			  
 			    goto wait;
 			  }
+			  
 				J_ASSERT_JH(jh, jh->b_next_transaction ==
 							transaction);
+			  */
 			}
 			warn_dirty_buffer(bh);
 		}
@@ -845,8 +850,7 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 	if (jh->b_frozen_data) {
 		JBUFFER_TRACE(jh, "has frozen data");
 		/* UFS */
-		if (jh->b_next_transaction != NULL) {
-		  jbd_unlock_bh_state(bh);
+		if (jh->b_next_transaction != NULL) {		  
 		  goto wait;
 		}
 		/* J_ASSERT_JH(jh, jh->b_next_transaction == NULL); */
@@ -873,7 +877,18 @@ j_cpsetup_sequence < jh->b_transaction->t_tid <= j_commit_sequence
 
 journal->j_commit_sequence != journal->j_cpsetup_sequence)
 		*/
+		
+
+
+
+
+
 		printk(KERN_ERR "UFS: tid = %u, commit = %u, cpsetup = %u\n", jh->b_transaction->t_tid, journal->j_commit_sequence, journal->j_cpsetup_sequence);
+
+
+
+
+
 		//if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence))
 		/*	if (!tid_geq(jh->b_transaction->t_tid, journal->j_commit_sequence))
 		  goto wait;
@@ -895,6 +910,9 @@ journal->j_commit_sequence != journal->j_cpsetup_sequence)
 		 * disk then we cannot do copy-out here. */
 
 		if (buffer_shadow(bh)) {
+#ifdef CPDEBUG
+	printk(KERN_ERR "UFS: %s: shadow waiting.\n", __func__);
+#endif
 			JBUFFER_TRACE(jh, "on shadow: sleep");
 			jbd_unlock_bh_state(bh);
 			wait_on_bit(&bh->b_state, BH_Shadow,
@@ -950,8 +968,6 @@ journal->j_commit_sequence != journal->j_cpsetup_sequence)
 	 */
 	if (!jh->b_transaction) {
 		JBUFFER_TRACE(jh, "no transaction");
-		if (jh->b_next_transaction)
-		  goto wait;
 		J_ASSERT_JH(jh, !jh->b_next_transaction);
 		JBUFFER_TRACE(jh, "file as BJ_Reserved");
 		spin_lock(&journal->j_list_lock);
@@ -995,6 +1011,9 @@ out:
 		jbd2_free(frozen_buffer, bh->b_size);
 
 	JBUFFER_TRACE(jh, "exit");
+#ifdef CPDEBUG
+	//printk(KERN_ERR "UFS: %s: end.\n", __func__);
+#endif
 	return error;
  wait:	
 #ifdef CPDEBUG
@@ -1104,7 +1123,9 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 #ifdef CPSETUPWAIT
 	read_lock(&journal->j_state_lock);
 	if ((jh->b_transaction && jh->b_transaction != transaction && jh->b_jlist != BJ_Forget) || jh->b_next_transaction) {
-	tid_t tid = jh->b_transaction ? jh->b_transaction->t_tid : jh->b_next_transaction->t_tid;
+	  tid_t tid = 0;
+	  tid = jh->b_next_transaction ? jh->b_next_transaction->t_tid : jh->b_transaction->t_tid;
+	    
 #ifdef CPDEBUG
 	printk(KERN_ERR "UFS: %s: next_tx exist\n", __func__);
 #endif
@@ -1481,7 +1502,7 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 #ifdef CPDEBUG
 	printk(KERN_ERR "UFS: %s: \n", __func__);
 #endif
-#ifdef CPSETUPWAIT2
+#ifdef CPSETUPWAIT
  repeat:
 #endif
 	jbd_lock_bh_state(bh);
@@ -1500,10 +1521,10 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 	}
 
 	/* UFS */
-#ifdef CPSETUPWAIT2
+#ifdef CPSETUPWAIT
 
 	
-	if (jh->b_transaction && jh->b_transaction != transaction && jh->b_next_transaction) { //b_transaction->t_tid > journal->j_cpsetup_sequence) {	    
+	if (jh->b_transaction && jh->b_transaction != transaction && jh->b_next_transaction != transaction) { //b_transaction->t_tid > journal->j_cpsetup_sequence) {	    
 #ifdef CPDEBUG
 	printk(KERN_ERR "UFS: %s: next_tx exist\n", __func__);
 #endif
@@ -2221,7 +2242,7 @@ static int journal_unmap_buffer(journal_t *journal, struct buffer_head *bh,
 				goto zap_buffer;
 			} else {
 			  /* UFS */
-			  /*
+			  
 			  spin_lock(&journal->j_cplist_lock);
 			  if (journal->j_cpsetup_transactions) {
 			    may_free = __dispose_buffer(jh,
@@ -2230,7 +2251,7 @@ static int journal_unmap_buffer(journal_t *journal, struct buffer_head *bh,
 			    goto zap_buffer;
 			  }
 			  spin_unlock(&journal->j_cplist_lock);
-			  */
+			  
 			 
 				/* The orphan record's transaction has
 				 * committed.  We can cleanse this buffer */			 
