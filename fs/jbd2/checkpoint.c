@@ -148,6 +148,14 @@ void __jbd2_log_wait_for_space(journal_t *journal)
 
 			if (journal->j_committing_transaction)
 				tid = journal->j_committing_transaction->t_tid;
+			/* UFS */
+			else {
+			  spin_lock(&journal->j_cplist_lock);
+			  if (journal->j_cpsetup_transactions)
+			    tid = journal->j_cpsetup_transactions->t_tid;
+			  spin_unlock(&journal->j_cplist_lock);
+			}
+
 			spin_unlock(&journal->j_list_lock);
 			write_unlock(&journal->j_state_lock);
 			if (chkpt) {
@@ -157,6 +165,8 @@ void __jbd2_log_wait_for_space(journal_t *journal)
 				;
 			} else if (tid) {
 				jbd2_log_wait_commit(journal, tid);
+				/* UFS */
+				jbd2_log_wait_cpsetup(journal, tid);
 			} else {
 				printk(KERN_ERR "%s: needed %d blocks and "
 				       "only had %d space available\n",

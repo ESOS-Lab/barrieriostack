@@ -332,8 +332,9 @@ BUFFER_FNS(Verified, verified)
 
 #include <linux/jbd_common.h>
 
-#define J_ASSERT(assert)	BUG_ON(!(assert))
-//#define J_ASSERT(assert)	BUG_ON(!(assert) && 0)
+//#define J_ASSERT(assert)	BUG_ON(!(assert))
+#define J_ASSERT(assert)	if (!(assert)) { printk(KERN_ERR "UFS_ASSERT: %s %d\n", __func__, __LINE__);}
+//BUG_ON(!(assert) && 0)
 
 #define J_ASSERT_BH(bh, expr)	J_ASSERT(expr)
 #define J_ASSERT_JH(jh, expr)	J_ASSERT(expr)

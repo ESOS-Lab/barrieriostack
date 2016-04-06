@@ -171,12 +171,12 @@ static int kjournald2(void *arg)
 {
 	journal_t *journal = arg;
 	transaction_t *transaction;
-
+	/*
 	int commit_iter = 1;
 	int cpsetup_iter = 1;
 	int commit = 0;
 	int cpsetup = 0;
-
+	*/
 
 	/*
 	 * Set up an interval timer which can be used to trigger a commit wakeup
@@ -211,8 +211,9 @@ loop:
 		/* UFS */
 		//jbd2_journal_commit_transaction(journal);
 		jbd2_journal_barrier_commit_transaction(journal);
+		/*
 		commit++;
-		if (journal->j_commit_sequence > journal->j_cpsetup_sequence)
+		if (journal->j_commit_sequence > journal->j_cpsetup_sequence+2)
 		{
 		  DEFINE_WAIT(wait);
 		  wake_up(&journal->j_wait_commit);
@@ -225,7 +226,7 @@ loop:
 		  cpsetup = 0;
 		if (commit == commit_iter)
 		  commit = 0;
-
+		*/
 		wake_up(&journal->j_wait_commit);
 		write_lock(&journal->j_state_lock);
 		goto loop;
@@ -751,7 +752,15 @@ int jbd2_journal_start_commit(journal_t *journal, tid_t *ptid)
 		if (ptid)
 			*ptid = journal->j_committing_transaction->t_tid;
 		ret = 1;
-	}
+	} else if (journal->j_cpsetup_transactions) {
+	  /* UFS */
+	  spin_lock(&journal->j_cplist_lock);
+	  if (journal->j_cpsetup_transactions) {
+	    if (ptid)
+	      *ptid = journal->j_cpsetup_transactions->t_tid;	    
+	  }
+	  spin_unlock(&journal->j_cplist_lock);
+	}	
 	write_unlock(&journal->j_state_lock);
 	return ret;
 }
@@ -1019,6 +1028,7 @@ int jbd2_journal_get_log_tail(journal_t *journal, tid_t *tid,
 		*tid = transaction->t_tid;
 		*block = journal->j_head;
 	} else {
+	  /* UFS: Need something? */
 		*tid = journal->j_transaction_sequence;
 		*block = journal->j_head;
 	}
