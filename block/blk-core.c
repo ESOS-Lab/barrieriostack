@@ -1532,10 +1532,10 @@ void init_request_from_bio(struct request *req, struct bio *bio)
 	/* UFS */
 	if (bio->bi_rw & REQ_ORDERED) {
 		req->cmd_bflags |= REQ_ORDERED;
-		bio->bi_epoch = current->epoch;
+		//bio->bi_epoch = current->epoch;
 	}
-	if (bio->bi_rw & REQ_BARRIER)
-		req->cmd_bflags |= REQ_BARRIER;
+	//if (bio->bi_rw & REQ_BARRIER)
+	//	req->cmd_bflags |= REQ_BARRIER;
 
 	req->errors = 0;
 	req->__sector = bio->bi_sector;
@@ -1971,7 +1971,7 @@ EXPORT_SYMBOL(generic_make_request);
  * interfaces; @bio must be presetup and ready for I/O.
  *
  */
-void submit_bio(int rw, struct bio *bio)
+void submit_bio(long long/*int*/ rw, struct bio *bio)
 {
 	bio->bi_rw |= rw;
 	//bio->bi_rw &= ~(REQ_BARRIER | REQ_ORDERED);
@@ -3223,14 +3223,23 @@ EXPORT_SYMBOL(blk_finish_plug);
 /* UFS blk functions */
 void blk_issue_barrier_plug(struct blk_plug *plug)
 {
-	struct request *rq;
+  //struct request *rq;
+	/*
 	if (list_empty(&plug->list)) {
 		current->barrier_fail = 1;
 		return;
 	}
-	rq = list_entry_rq(plug->list.prev);
+	*/
+	//rq = list_entry_rq(plug->list.prev);
 
-	rq->cmd_bflags |= REQ_BARRIER;
+	//rq->cmd_bflags |= REQ_BARRIER;
+  	if (current->__epoch)
+  	  blk_finish_epoch();
+	else
+	  current->barrier_fail = 1;
+	//current->__epoch->barrier = 1;
+  	//else
+  	//  current->barrier_fail = 1;
 }
 EXPORT_SYMBOL(blk_issue_barrier_plug);
 
@@ -3250,10 +3259,11 @@ void blk_request_dispatched(struct request *req)
 	while (req_bio) {
 		int i;
 		struct bio *bio = req_bio;
-		if (bio->bi_size <= 0) {
+		/*if (bio->bi_size <= 0) {
 		        req_bio = bio->bi_next;
 			continue;
-		}
+			}*/
+		
 		
 		if (req->cmd_bflags & REQ_ORDERED) {			  
 		  if (bio->bi_epoch) {
@@ -3266,18 +3276,21 @@ void blk_request_dispatched(struct request *req)
 		      //if (epoch->task->__epoch == epoch)
 		      //epoch->task->__epoch = 0;
 		      mempool_free(epoch, epoch->q->epoch_pool);
+		    
 		  }
 		}
 		
-		if (dispatch_bio_bh(bio)) {
-		          req_bio = bio->bi_next;
-			  continue;	
-		}
+		
 		for (i=0; i < bio->bi_vcnt; i++) {
 			struct bio_vec *bvec = &bio->bi_io_vec[i];
 			struct page *page = bvec->bv_page;
 			if (page)
 			  end_page_dispatch(page);
+		}
+
+		if (dispatch_bio_bh(bio)) {
+		          req_bio = bio->bi_next;
+			  continue;	
 		}
 		req_bio = bio->bi_next;
 	}
@@ -3362,7 +3375,8 @@ void blk_start_epoch(struct request_queue *q)
 	epoch->complete = 0;
 	epoch->error = 0;
 	epoch->error_flags = 0;
-	
+
+	get_epoch(epoch);
 
 	current->__epoch = epoch;	
 }
@@ -3376,9 +3390,19 @@ void blk_finish_epoch(void)
 	if (!epoch) {
 	        printk(KERN_ERR "UFS: %s: unstarted epoch!\n", __func__);
 		return;
+	}	
+	//spin_lock_irq(epoch->q->queue_lock);
+	if (epoch->pending == 0) {
+	  epoch->task->barrier_fail = 1;
 	}
-	epoch->barrier = 1;
+	else
+	  epoch->barrier = 1;
+
 	current->__epoch = 0;	
+	put_epoch(epoch);
+	if (atomic_read(&epoch->e_count) == 0)
+	  mempool_free(epoch, epoch->q->epoch_pool);
+	//spin_unlock_irq(epoch->q->queue_lock);
 }
 EXPORT_SYMBOL(blk_finish_epoch);
 

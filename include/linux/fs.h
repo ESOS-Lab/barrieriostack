@@ -2421,7 +2421,7 @@ static inline void remove_inode_hash(struct inode *inode)
 extern void inode_sb_list_add(struct inode *inode);
 
 #ifdef CONFIG_BLOCK
-extern void submit_bio(int, struct bio *);
+extern void submit_bio(long long/*int*/, struct bio *);
 /*UFS*/
 extern void submit_bio64(long long, struct bio *);
 

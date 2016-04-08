@@ -97,6 +97,7 @@ static void journal_end_logbuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}	
+	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
 }
 /* 
@@ -117,7 +118,7 @@ static void journal_end_iobuf_io_async(struct buffer_head *bh, int uptodate)
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	//	wake_up_buffer_dispatch(bh);
+		wake_up_buffer_dispatch(bh);
 	//unlock_buffer(bh);
 	/*
 	 * UFS
@@ -144,11 +145,15 @@ static void journal_end_commit_record_io_async(struct buffer_head *bh, int uptod
 		smp_mb__after_clear_bit();
 		wake_up_bit(&orig_bh->b_state, BH_Shadow);
 	}
-	unlock_buffer(bh);
+
 	/*
 	 * UFS
 	 */	
+	wake_up_buffer_dispatch(bh);
 	//wake_up(&jh->b_transaction->t_journal->j_wait_cpsetup);
+
+	unlock_buffer(bh);
+	
 }
 
 
@@ -264,6 +269,7 @@ static int journal_submit_commit_record(journal_t *journal,
 	set_buffer_uptodate(bh);
 	bh->b_end_io = journal_end_buffer_io_sync;
 	/* UFS */
+	//get_bh(bh);
 	bh->b_end_io = journal_end_commit_record_io_async;
 	commit_transaction->cbh = bh;
 
@@ -1342,6 +1348,8 @@ restart_loop:
 
 /* UFS */
 #define JBD2CPDEBUG
+//#define JBD2CPDEBUG2
+//#define JBD2CPDEBUG3
 void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 {
 	struct transaction_stats_s stats;
@@ -1434,6 +1442,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	spin_lock(&commit_transaction->t_handle_lock);
 	while (atomic_read(&commit_transaction->t_updates)) {
 		DEFINE_WAIT(wait);
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: handle wait.\n", __func__);
+#endif
 
 		prepare_to_wait(&journal->j_wait_updates, &wait,
 					TASK_UNINTERRUPTIBLE);
@@ -1445,6 +1456,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 			spin_lock(&commit_transaction->t_handle_lock);
 		}
 		finish_wait(&journal->j_wait_updates, &wait);
+#ifdef JBD2CPDEBUG
+	printk(KERN_ERR "UFS: %s: handle wait end.\n", __func__);
+#endif
 	}
 	spin_unlock(&commit_transaction->t_handle_lock);
 
@@ -1467,6 +1481,10 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	 * that multiple jbd2_journal_get_write_access() calls to the same
 	 * buffer are perfectly permissible.
 	 */
+
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	while (commit_transaction->t_reserved_list) {
 		jh = commit_transaction->t_reserved_list;
 		JBUFFER_TRACE(jh, "reserved, unused: refile");
@@ -1484,7 +1502,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 		}
 		jbd2_journal_refile_buffer(journal, jh);
 	}
-
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	/*
 	 * Now try to drop any written-back buffers from the journal's
 	 * checkpoint lists.  We do this *before* commit because it potentially
@@ -1520,6 +1540,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	wake_up(&journal->j_wait_transaction_locked);
 	write_unlock(&journal->j_state_lock);
 
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	jbd_debug(3, "JBD2: commit phase 2\n");
 
 	/*
@@ -1536,6 +1559,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	blk_finish_plug(&plug);
 
 	jbd_debug(3, "JBD2: commit phase 2\n");
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 
 	/*
 	 * Way to go: we have now written out all of the data for a
@@ -1561,6 +1587,9 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	bufs = 0;
 	descriptor = NULL;
 	blk_start_plug(&plug);
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	while (commit_transaction->t_buffers) {
 
 		/* Find the next buffer to be journaled... */
@@ -1747,6 +1776,10 @@ start_journal_io:
 			bufs = 0;
 		}
 	}
+
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	/* UFS */
 	err = journal_dispatch_inode_data_buffers(journal, commit_transaction);
 	//err = journal_finish_inode_data_buffers(journal, commit_transaction);
@@ -1816,6 +1849,10 @@ start_journal_io:
 	*/
 
 	jbd_debug(3, "JBD2: commit phase 3\n");
+
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	
 	/*	while (bh->b_assoc_buffers.next == io_bufs
 	       bh = list_entry(io_bufs.next, struct buffer_head, b_assoc_buffers) == 
@@ -1826,8 +1863,13 @@ start_journal_io:
 						    struct buffer_head,
 						    b_assoc_buffers);
 		struct buffer_head *orig_bh = bh->b_private;
-	  
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		wait_on_buffer_dispatch(bh);
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		//jbd2_unfile_log_bh(bh);
 		//continue;
 		
@@ -1842,8 +1884,14 @@ start_journal_io:
 		//__brelse(bh);
 		//if (atomic_read(&bh->b_count)==0)
 		//  free_buffer_head(bh);
-
+		
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		jbd2_file_log_bh(&commit_transaction->io_bufs, bh);
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		continue;
 
 		if (unlikely(!buffer_uptodate(bh)))
@@ -1875,7 +1923,9 @@ start_journal_io:
 		JBUFFER_TRACE(jh, "brelse shadowed buffer");
 		__brelse(bh);
 	}
-
+#ifdef JBD2CPDEBUG22
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 
 	//J_ASSERT (commit_transaction->t_shadow_list == NULL);
 
@@ -1886,7 +1936,13 @@ start_journal_io:
 		struct buffer_head *bh;
 
 		bh = list_entry(log_bufs.prev, struct buffer_head, b_assoc_buffers);
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		wait_on_buffer_dispatch(bh);
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 		//wait_on_buffer(bh);
 		jbd2_unfile_log_bh(bh);
 		jbd2_file_log_bh(&commit_transaction->log_bufs, bh);
@@ -1906,13 +1962,18 @@ start_journal_io:
 	}
 
 	
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 
 	jbd_debug(3, "JBD2: commit phase 5\n");
 	write_lock(&journal->j_state_lock);
 	J_ASSERT(commit_transaction->t_state == T_COMMIT_DFLUSH);
 	commit_transaction->t_state = T_COMMIT_JFLUSH;
 	write_unlock(&journal->j_state_lock);
-
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	if (!JBD2_HAS_INCOMPAT_FEATURE(journal,
 				       JBD2_FEATURE_INCOMPAT_ASYNC_COMMIT)) {
 		err = journal_submit_commit_record(journal, commit_transaction,
@@ -1920,13 +1981,18 @@ start_journal_io:
 		if (err)
 			__jbd2_journal_abort_hard(journal);
 	}
+#ifdef JBD2CPDEBUG32
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	/*
 	if (cbh)
 	  err = journal_wait_on_commit_record(journal, cbh);
 	*/
 	if (cbh)
 	  err = journal_dispatch_on_commit_record(journal, cbh);
-
+#ifdef JBD2CPDEBUG3
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	/*
 	 * Now disk caches for filesystem device are flushed so we are safe to
 	 * erase checkpointed transactions from the log by updating journal
@@ -1939,6 +2005,10 @@ start_journal_io:
            processing: any buffers committed as a result of this
            transaction can be removed from any checkpoint list it was on
            before. */
+
+#ifdef JBD2CPDEBUG3
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 
 	jbd_debug(3, "JBD2: commit phase 6\n");
 
@@ -2019,6 +2089,9 @@ start_journal_io:
 	 * into the j_cpsetup_transactions. 
 	 */
 
+#ifdef JBD2CPDEBUG2
+printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
+#endif
 	spin_lock(&journal->j_cplist_lock);
 
 	if (journal->j_cpsetup_transactions == NULL) {
@@ -2036,8 +2109,9 @@ start_journal_io:
 			commit_transaction;
 	}
 	spin_unlock(&journal->j_cplist_lock);
+
 	wake_up(&journal->j_wait_cpsetup);
-	wake_up(&journal->j_wait_done_commit);
+	//wake_up(&journal->j_wait_done_commit);
 #ifdef JBD2CPDEBUG
 	printk(KERN_ERR "UFS: %s: end.\n", __func__);
 #endif
@@ -2120,7 +2194,7 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 	  wait_on_buffer(commit_transaction->cbh);	  
 	  if (unlikely(!buffer_uptodate(commit_transaction->cbh)))
 	    err = -EIO;
-	    put_bh(commit_transaction->cbh);            /* One for getblk() */
+          put_bh(commit_transaction->cbh);            /* One for getblk() */
 	}
 
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal,
@@ -2278,7 +2352,7 @@ restart_loop:
 
 	spin_lock(&journal->j_cplist_lock);
 	//journal->j_committing_transaction = journal->j_cpsetup_transactions;
-	journal->j_committing_transaction = NULL;
+	//journal->j_committing_transaction = NULL;
 	//journal->j_commit_sequence = commit_transaction->t_tid;
 	journal->j_cpsetup_sequence = commit_transaction->t_tid;
 	//journal->j_cpsetup_request
@@ -2323,7 +2397,7 @@ restart_loop:
 	}
 	spin_unlock(&journal->j_list_lock);
 	write_unlock(&journal->j_state_lock);
-	wake_up(&journal->j_wait_done_commit);
+	//wake_up(&journal->j_wait_done_commit);
 
 	/* UFS */
 	wake_up(&journal->j_wait_done_cpsetup);

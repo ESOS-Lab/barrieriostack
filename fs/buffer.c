@@ -74,6 +74,13 @@ void __lock_buffer(struct buffer_head *bh)
 }
 EXPORT_SYMBOL(__lock_buffer);
 
+/* UFS */
+void __lock_buffer_dispatch(struct buffer_head *bh)
+{
+    wait_on_bit_lock(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
+}
+EXPORT_SYMBOL(__lock_buffer_dispatch);
+
 void unlock_buffer(struct buffer_head *bh)
 {
 	clear_bit_unlock(BH_Lock, &bh->b_state);
@@ -164,6 +171,8 @@ void end_buffer_write_sync(struct buffer_head *bh, int uptodate)
 		set_buffer_write_io_error(bh);
 		clear_buffer_uptodate(bh);
 	}
+	/* UFS */
+	wake_up_buffer_dispatch(bh);
 	unlock_buffer(bh);
 	put_bh(bh);
 }
@@ -3122,7 +3131,8 @@ int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_fl
 
 	bio_get(bio);
 	/* UFS */
-	set_buffer_dispatch(bh);
+	//set_buffer_dispatch(bh);
+	lock_buffer_dispatch(bh);
 	submit_bio64(rw, bio);
 
 	if (bio_flagged(bio, BIO_EOPNOTSUPP))

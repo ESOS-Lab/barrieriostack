@@ -660,8 +660,9 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 	unsigned long start_lock, time_lock;
 
 	tid_t wait_tid;
-	int i = 0;
+	
 #ifdef CPDEBUG
+	int i = 0;
 	//printk(KERN_ERR "UFS: %s start.\n", __func__);
 #endif
 	if (is_handle_aborted(handle))
@@ -732,19 +733,19 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 #ifdef CPDEBUG
 
 	if (i<3 &&jh->b_transaction && jh->b_transaction->t_tid < journal->j_cpsetup_sequence) {
-	printk(KERN_ERR "UFS_DEBUG: running_transaction tid = %d\n", transaction->t_tid);
+	  printk(KERN_ERR "UFS_DEBUG: running_transaction tid = %d\n", transaction->t_tid);
 	  printk(KERN_ERR "UFS_DEBUG: tid error tid=%d commit=%d cpsetup=%d\n", jh->b_transaction->t_tid, journal->j_commit_sequence, journal->j_cpsetup_sequence);
 	  if (jh->b_next_transaction)
-printk(KERN_ERR "UFS_DEBUG: tid error next_ tid=%d\n", jh->b_next_transaction->t_tid);
+	    printk(KERN_ERR "UFS_DEBUG: tid error next_ tid=%d\n", jh->b_next_transaction->t_tid);
 	  i++;
 	  dump_stack();
-}
+	}
 	if (i<3&& jh->b_next_transaction && jh->b_next_transaction->t_tid < journal->j_cpsetup_sequence) {
-	printk(KERN_ERR "UFS_DEBUG: running_transaction tid = %d\n", transaction->t_tid);
+	  printk(KERN_ERR "UFS_DEBUG: running_transaction tid = %d\n", transaction->t_tid);
 	  printk(KERN_ERR "UFS_DEBUG: next tid error tid=%d commit=%d cpsetup=%d\n", jh->b_transaction->t_tid, journal->j_commit_sequence, journal->j_cpsetup_sequence);
-dump_stack();
- i++;
-}
+	  dump_stack();
+	  i++;
+	}
 
 #endif
 	/*
@@ -902,13 +903,13 @@ journal->j_commit_sequence != journal->j_cpsetup_sequence)
 		*/
 		
 
-
+#ifdef CPDEBUG
 
 
 
 		printk(KERN_ERR "UFS: tid = %u, commit = %u, cpsetup = %u\n", jh->b_transaction->t_tid, journal->j_commit_sequence, journal->j_cpsetup_sequence);
 
-
+#endif
 
 
 
@@ -1042,8 +1043,9 @@ out:
 #ifdef CPDEBUG
 	if (i < 3)
 	printk(KERN_ERR "UFS: %s: goto wait\n", __func__);
-#endif
 	i++;
+#endif
+	
 	{
 		  tid_t tid;
 		  jbd_unlock_bh_state(bh);
@@ -1160,7 +1162,7 @@ int jbd2_journal_get_create_access(handle_t *handle, struct buffer_head *bh)
 	  jbd_unlock_bh_state(bh);
 	  spin_unlock(&journal->j_list_lock);
 	  read_unlock(&journal->j_state_lock);
-	  wait_event(journal->j_wait_done_cpsetup, !tid_gt(tid, journal->j_cpsetup_sequence));
+	  wait_event(journal->j_wait_done_cpsetup, !jh->b_next_transaction);
 	  goto repeat;
 	  
 	}
@@ -1557,12 +1559,12 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 #endif
 	  read_lock(&journal->j_state_lock);
 	  if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
-	    tid_t tid = jh->b_transaction->t_tid;
+	    //tid_t tid = jh->b_transaction->t_tid;
 	    wake_up(&journal->j_wait_cpsetup);
 	    read_unlock(&journal->j_state_lock);
 	    spin_unlock(&journal->j_list_lock);
 	    jbd_unlock_bh_state(bh);
-	    wait_event(journal->j_wait_done_cpsetup, !tid_gt(tid, journal->j_cpsetup_sequence));
+	    wait_event(journal->j_wait_done_cpsetup,  !jh->b_transaction || jh->b_transaction == transaction || jh->b_next_transaction == transaction/*!tid_gt(tid, journal->j_cpsetup_sequence)*/);
 	    goto repeat;
 	  }
 	  read_unlock(&journal->j_state_lock);
@@ -2622,6 +2624,9 @@ repeat:
 	/* UFS */
 #ifdef CPSETUPWAIT
 	if (jinode->i_next_transaction) {
+#ifdef CPDEBUG
+	  printk(KERN_ERR "UFS: %s: wait,\n", __func__);
+#endif
 	      spin_unlock(&journal->j_list_lock);
 	      wake_up(&journal->j_wait_cpsetup);
 	      wait_event(journal->j_wait_done_cpsetup, !jinode->i_next_transaction);

@@ -198,6 +198,7 @@ void write_dirty_buffer(struct buffer_head *bh, int rw);
 int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags);
 int submit_bh(int, struct buffer_head *);
 /* UFS */
+void __lock_buffer_dispatch(struct buffer_head *bh);
 int dispatch_bio_bh(struct bio *bio);
 int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_flags);
 int submit_bh64(long long rw, struct buffer_head *bh);
@@ -360,19 +361,30 @@ extern int __set_page_dirty_buffers(struct page *page);
 
 /* UFS: Buffer head */
 void __wait_on_buffer_dispatch(struct buffer_head *bh);
-
-static inline void wait_on_buffer_dispatch(struct buffer_head *bh)
+static inline int trylock_buffer_dispatch(struct buffer_head *bh)
 {
-	if (buffer_dispatch(bh))
+  return !test_and_set_bit_lock(BH_Dispatch, &bh->b_state);
+}
+static inline void lock_buffer_dispatch(struct buffer_head *bh)
+{
+  trylock_buffer_dispatch(bh);
+  //if(!trylock_buffer_dispatch(bh))
+    //__lock_buffer_dispatch(bh);
+}
+static inline void wait_on_buffer_dispatch(struct buffer_head *bh)
+{   
+   if (buffer_dispatch(bh))
 		__wait_on_buffer_dispatch(bh);
 }
 
 static inline void wake_up_buffer_dispatch(struct buffer_head *bh)
 {
-	if (test_clear_buffer_dispatch(bh)) {
-		smp_mb__after_clear_bit();
-		wake_up_bit(&bh->b_state, BH_Dispatch);
-	}
+  
+        clear_bit_unlock(BH_Dispatch, &bh->b_state);
+	//if (test_clear_buffer_dispatch(bh)) {
+	smp_mb__after_clear_bit();
+	wake_up_bit(&bh->b_state, BH_Dispatch);
+	//}
 }
 
 

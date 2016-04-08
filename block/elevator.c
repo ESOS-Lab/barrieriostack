@@ -364,7 +364,7 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 	boundary = q->end_sector;
 	stop_flags = REQ_SOFTBARRIER | REQ_STARTED;
 	/* UFS */
-	stop_flags = REQ_SOFTBARRIER | REQ_STARTED | REQ_BARRIER;
+	//stop_flags = REQ_SOFTBARRIER | REQ_STARTED | REQ_BARRIER;
 
 
        
@@ -374,16 +374,17 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 	  req_bio = rq->bio;
 	  while (req_bio) {
 	    struct bio *bio = req_bio;
+	    /*
 	    if (!bio->bi_size) {
 	      req_bio = bio->bi_next;
 	      continue;
 	    }
-	   	
+	    */
 	    if (bio->bi_epoch) {
 	      struct epoch *epoch = bio->bi_epoch;
 	      printk(KERN_ERR "UFS2: pending: %u dispatch: %u barrier: %d\n", epoch->pending, epoch->dispatch, epoch->barrier);
 	      if (epoch->pending == 1 && epoch->barrier) {
-		printk(KERN_ERR "UFS2: %s: REQ: BARRIER\n", __func__);
+		//printk(KERN_ERR "UFS2: %s: REQ: BARRIER\n", __func__);
 		rq->cmd_bflags |= REQ_BARRIER;			  
 	      }
 	      epoch->pending--;
@@ -454,8 +455,8 @@ insert:
 		if (blk_rq_pos(rq) >= blk_rq_pos(pos))
 			break;
 		/* UFS */
-		if (rq->cmd_bflags & REQ_BARRIER)
-			break;
+		//if (rq->cmd_bflags & REQ_BARRIER)
+		//	break;
 	}
 
 	list_add(&rq->queuelist, entry);

@@ -2594,6 +2594,11 @@ retry:
 			 */
 			break;
 	}
+	/* UFS */
+	if (wbc->sync_mode == WB_BARRIER_ALL) {
+		blk_issue_barrier_plug(&plug);
+	}
+
 	blk_finish_plug(&plug);
 	if (!io_done && !cycled) {
 		cycled = 1;

@@ -186,7 +186,7 @@ EXPORT_SYMBOL(vfs_fsync_range);
 //UFS project add by 
 int vfs_fbarrier_range(struct file *file, loff_t start, loff_t end, int datasync)
 {
-	printk("in vfs_fbarrier_range FN\n");
+  //printk("in vfs_fbarrier_range FN\n");
 	if (!file->f_op || !file->f_op->fbarrier)
 		return -EINVAL;
 	return file->f_op->fbarrier(file, start, end, datasync);
@@ -210,7 +210,7 @@ EXPORT_SYMBOL(vfs_fsync);
 //UFS project add by 
 int vfs_fbarrier(struct file *file, int datasync)
 {
-	printk("in vfs_fbarrier FN\n");
+  //printk("in vfs_fbarrier FN\n");
 	return vfs_fbarrier_range(file, 0, LLONG_MAX, datasync);
 }
 EXPORT_SYMBOL(vfs_fbarrier);
@@ -233,7 +233,7 @@ static int do_fbarrier(unsigned int fd, int datasync)
 	struct fd f =fdget(fd);
 	int ret = -EBADF;
 
-	printk("in do_fbarrier FN\n");
+	//printk("in do_fbarrier FN\n");
 
 	if (f.file) {
 		ret = vfs_fbarrier(f.file, datasync);
@@ -244,7 +244,7 @@ static int do_fbarrier(unsigned int fd, int datasync)
 
 SYSCALL_DEFINE1(fsync, unsigned int, fd)
 {
-	printk("in SYSCALL_DEFINE1(fsync)\n");
+  //printk("in SYSCALL_DEFINE1(fsync)\n");
 	return do_fsync(fd, 0);
 }
 
@@ -284,7 +284,7 @@ EXPORT_SYMBOL(generic_write_sync);
 //UFS project
 int generic_write_fbarrier(struct file *file, loff_t pos, loff_t count)
 {
-	printk("in generic_write_fbarrier FN\n");
+  //printk("in generic_write_fbarrier FN\n");
 	if (!(file->f_flags & O_DSYNC) && !IS_SYNC(file->f_mapping->host))
 		return 0;
 	return vfs_fbarrier_range(file, pos, pos + count - 1,

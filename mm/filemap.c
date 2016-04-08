@@ -315,7 +315,7 @@ int filemap_write_and_dispatch_range(struct address_space *mapping,
 
 	if (mapping->nrpages) {
 		err = __filemap_fdatawrite_range(mapping, lstart, lend,
-						WB_BARRIER_ALL);
+						WB_ORDERED_ALL);
 		if (err != -EIO) {
 			err = filemap_fdatadispatch_range(mapping,
 						lstart, lend);
@@ -721,11 +721,10 @@ EXPORT_SYMBOL(end_page_writeback);
 
 /* UFS */
 void end_page_dispatch(struct page *page)
-{
-	if (TestClearPageDispatch(page)) {
-		smp_mb__after_clear_bit();
-		wake_up_page(page, PG_dispatch);
-	}
+{        
+        TestClearPageDispatch(page);
+	smp_mb__after_clear_bit();
+	wake_up_page(page, PG_dispatch);
 }
 EXPORT_SYMBOL(end_page_dispatch);
 
