@@ -1347,7 +1347,7 @@ restart_loop:
 }
 
 /* UFS */
-#define JBD2CPDEBUG
+//#define JBD2CPDEBUG
 //#define JBD2CPDEBUG2
 //#define JBD2CPDEBUG3
 void jbd2_journal_barrier_commit_transaction(journal_t *journal)

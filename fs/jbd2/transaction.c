@@ -631,7 +631,7 @@ static int sleep_on_shadow_bh(void *word)
 
 
 #define CPSETUPWAIT
-#define CPDEBUG
+//#define CPDEBUG
 /*
 static void jbd2_sequence_sync()
 {

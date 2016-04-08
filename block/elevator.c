@@ -382,7 +382,7 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 	    */
 	    if (bio->bi_epoch) {
 	      struct epoch *epoch = bio->bi_epoch;
-	      printk(KERN_ERR "UFS2: pending: %u dispatch: %u barrier: %d\n", epoch->pending, epoch->dispatch, epoch->barrier);
+	      //printk(KERN_ERR "UFS2: pending: %u dispatch: %u barrier: %d\n", epoch->pending, epoch->dispatch, epoch->barrier);
 	      if (epoch->pending == 1 && epoch->barrier) {
 		//printk(KERN_ERR "UFS2: %s: REQ: BARRIER\n", __func__);
 		rq->cmd_bflags |= REQ_BARRIER;			  
