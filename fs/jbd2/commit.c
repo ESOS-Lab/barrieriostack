@@ -2202,7 +2202,9 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 	    journal->j_flags & JBD2_BARRIER) {
 	  // blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
 	}
-
+	if (commit_transaction->t_flush_trigger) {
+		blkdev_issue_flush(journal->j_dev, GFP_NOFS, NULL);
+	}
 	if (err)
 		jbd2_journal_abort(journal, err);
 
@@ -2338,6 +2340,11 @@ restart_loop:
 	 * other checkpointing code processing the transaction...
 	 */
 	write_lock(&journal->j_state_lock);
+
+	/* UFS */
+	if (commit_transaction->t_flush_trigger)
+		journal->j_flush_sequence = commit_transaction->t_tid;
+
 	spin_lock(&journal->j_list_lock);
 	/*
 	 * Now recheck if some buffers did not get attached to the transaction

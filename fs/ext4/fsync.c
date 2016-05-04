@@ -118,7 +118,7 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	journal_t *journal = EXT4_SB(inode->i_sb)->s_journal;
 	int ret, err;
 	tid_t commit_tid;
-	//bool needs_barrier = false;
+	bool needs_barrier = false;
 
 	J_ASSERT(ext4_journal_current_handle() == NULL);
 
@@ -173,19 +173,19 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	}
 
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
-	/*
+	
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
 		needs_barrier = true;
-	*/
+
 	//ret = jbd2_complete_transaction(journal, commit_tid);
 
 	ret = jbd2_complete_cpsetup_transaction(journal, commit_tid);
-	//if (needs_barrier) {
-	err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
-	if (!ret)
+	if (needs_barrier) {
+		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+		if (!ret)
 		ret = err;
-	//}
+	}
  out:
 	mutex_unlock(&inode->i_mutex);
 	trace_ext4_sync_file_exit(inode, ret);

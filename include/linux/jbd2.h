@@ -640,11 +640,13 @@ struct transaction_s
 	 */
 	struct list_head	t_private_list;
 
-  /* UFS */
-  struct list_head jh_wait;
-  struct list_head io_bufs;
-  struct list_head log_bufs;
-  struct buffer_head *cbh;
+	/* UFS */
+	struct list_head	jh_wait;
+	struct list_head	io_bufs;
+	struct list_head	log_bufs;
+	struct buffer_head	*cbh;
+
+	int			t_flush_trigger;
 };
 
 struct transaction_run_stats_s {
@@ -918,6 +920,7 @@ struct journal_s
 	/* UFS */
 	tid_t			j_cpsetup_sequence;
 	tid_t			j_cpsetup_request;
+	tid_t			j_flush_sequence;
 
 	/*
 	 * Journal uuid: identifies the object (filesystem, LVM volume etc)
@@ -1250,6 +1253,7 @@ extern void	jbd2_clear_buffer_revoked_flags(journal_t *journal);
 /* UFS */
 int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid);
 int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid);
+int jbd2_flush_transaction(journal_t *journal, tid_t tid);
 
 /*
  * The log thread user interface:
@@ -1261,6 +1265,9 @@ int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid);
 int __jbd2_log_space_left(journal_t *); /* Called with journal locked */
 int jbd2_log_start_commit(journal_t *journal, tid_t tid);
 int __jbd2_log_start_commit(journal_t *journal, tid_t tid);
+/* UFS */
+int jbd2_log_flush_commit(journal_t *journal, tid_t tid);
+int __jbd2_log_flush_commit(journal_t *journal, tid_t tid);
 int jbd2_journal_start_commit(journal_t *journal, tid_t *tid);
 int jbd2_journal_force_commit_nested(journal_t *journal);
 int jbd2_log_wait_commit(journal_t *journal, tid_t tid);

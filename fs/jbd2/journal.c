@@ -87,6 +87,7 @@ EXPORT_SYMBOL(jbd2_journal_ack_err);
 EXPORT_SYMBOL(jbd2_journal_clear_err);
 EXPORT_SYMBOL(jbd2_log_wait_commit);
 EXPORT_SYMBOL(jbd2_log_start_commit);
+EXPORT_SYMBOL(jbd2_log_flush_commit);
 EXPORT_SYMBOL(jbd2_journal_start_commit);
 EXPORT_SYMBOL(jbd2_journal_force_commit_nested);
 EXPORT_SYMBOL(jbd2_journal_wipe);
@@ -689,6 +690,54 @@ int jbd2_log_start_commit(journal_t *journal, tid_t tid)
 	return ret;
 }
 
+/* UFS */ 
+int __jbd2_log_flush_commit(journal_t *journal, tid_t target)
+{
+	/* Return if the txn has already requested to be committed */
+	if (journal->j_commit_request == target)
+		return 0;
+
+	/*
+	 * The only transaction we can possibly wait upon is the
+	 * currently running transaction (if it exists).  Otherwise,
+	 * the target tid must be an old one.
+	 */
+	if (journal->j_running_transaction &&
+	    journal->j_running_transaction->t_tid == target) {
+		/*
+		 * We want a new commit: OK, mark the request and wakeup the
+		 * commit thread.  We do _not_ do the commit ourselves.
+		 */
+
+		journal->j_commit_request = target;
+		journal->j_running_transaction->t_flush_trigger = 1;
+		jbd_debug(1, "JBD2: requesting commit %d/%d\n",
+			  journal->j_commit_request,
+			  journal->j_commit_sequence);
+		journal->j_running_transaction->t_requested = jiffies;
+		wake_up(&journal->j_wait_commit);
+		return 1;
+	} else if (!tid_geq(journal->j_commit_request, target))
+		/* This should never happen, but if it does, preserve
+		   the evidence before kjournald goes into a loop and
+		   increments j_commit_sequence beyond all recognition. */
+		WARN_ONCE(1, "JBD2: bad log_start_commit: %u %u %u %u\n",
+			  journal->j_commit_request,
+			  journal->j_commit_sequence,
+			  target, journal->j_running_transaction ? 
+			  journal->j_running_transaction->t_tid : 0);
+	return 0;
+}
+
+int jbd2_log_flush_commit(journal_t *journal, tid_t tid)
+{
+	int ret;
+	write_lock(&journal->j_state_lock);
+	ret = __jbd2_log_flush_commit(journal, tid);
+	write_unlock(&journal->j_state_lock);
+	return ret;
+}
+
 /*
  * Force and wait upon a commit if the calling process is not within
  * transaction.  This is used for forcing out undo-protected data which contains
@@ -782,13 +831,21 @@ int jbd2_trans_will_send_data_barrier(journal_t *journal, tid_t tid)
 		return 0;
 	read_lock(&journal->j_state_lock);
 	/* Transaction already committed? */
-	if (tid_geq(journal->j_commit_sequence, tid))
-		goto out;
+	/* UFS */
+
+	if (tid_geq(journal->j_commit_sequence, tid)) {
+		if (tid_geq(journal->j_flush_sequence, tid))
+			goto out;		
+	}
+	ret = 1;
+	goto out;
+
 	commit_trans = journal->j_committing_transaction;
 	if (!commit_trans || commit_trans->t_tid != tid) {
 		ret = 1;
 		goto out;
 	}
+
 	/*
 	 * Transaction is being committed and we already proceeded to
 	 * submitting a flush to fs partition?
@@ -921,7 +978,7 @@ int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
   int need_to_wait = 1;  
   int ret = 0;
   
-  ret = jbd2_complete_transaction(journal, tid);
+  ret = jbd2_flush_transaction(journal, tid);
   if (!ret) {
     read_lock(&journal->j_state_lock);
     if (!tid_geq(journal->j_commit_sequence, tid))
@@ -939,6 +996,36 @@ int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
 }
 EXPORT_SYMBOL(jbd2_complete_cpsetup_transaction);
 
+int jbd2_flush_transaction(journal_t *journal, tid_t tid)
+{
+	int	need_to_wait = 1;
+
+	read_lock(&journal->j_state_lock);
+	if (journal->j_running_transaction &&
+	    journal->j_running_transaction->t_tid == tid) {
+		if (journal->j_commit_request != tid) {
+			/* transaction not yet started, so request it */
+			read_unlock(&journal->j_state_lock);
+			jbd2_log_flush_commit(journal, tid);
+			goto wait_commit;
+		}
+	} else if (!(journal->j_committing_transaction &&
+		    journal->j_committing_transaction->t_tid == tid))
+                   /*(!tid_gt(tid, journal->j_commit_sequence)) */	  
+	  {
+	    //spin_lock(&journal->j_cplist_lock);
+	    //if (!journal->j_cpsetup_transactions)
+		need_to_wait = 0;
+		//spin_unlock(&journal->j_cplist_lock);
+	  }
+	read_unlock(&journal->j_state_lock);
+	if (!need_to_wait)
+		return 0;
+wait_commit:
+	return jbd2_log_wait_commit(journal, tid);
+}
+
+EXPORT_SYMBOL(jbd2_flush_transaction);
 
 /*
  * Log buffer allocation routines:
