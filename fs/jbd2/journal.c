@@ -1022,6 +1022,7 @@ int jbd2_flush_transaction(journal_t *journal, tid_t tid)
 	if (!need_to_wait)
 		return 0;
 wait_commit:
+	return 0;
 	return jbd2_log_wait_commit(journal, tid);
 }
 
