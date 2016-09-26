@@ -836,8 +836,8 @@ int jbd2_trans_will_send_data_barrier(journal_t *journal, tid_t tid)
 	if (tid_geq(journal->j_commit_sequence, tid)) {
 	  goto out;
 	}
-	if (tid_geq(journal->j_flush_sequence, tid))
-	  goto out;		
+	//if (tid_geq(journal->j_flush_sequence, tid))
+	//  goto out;		
 	
 	ret = 1;
 	goto out;
