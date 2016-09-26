@@ -327,7 +327,7 @@ loop:
 	//write_unlock(&journal->j_state_lock);
 	//commit_sequence  journal->j_commit_request);
 
-	wake_up(&journal->j_wait_done_cpsetup);
+	//wake_up(&journal->j_wait_done_cpsetup);
 	if (freezing(current)) {
 	  //	write_unlock(&journal->j_state_lock);
 		try_to_freeze();
