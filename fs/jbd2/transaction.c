@@ -691,11 +691,30 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 
 	/* UFS */
 	if (jh->b_transaction && jh->b_transaction != transaction) {
+#ifdef DELAYED_COMMIT
+	  /* insert jh into the buffer list of transaction */
+	  /* list_lock*/
+	  spin_lock(&journal->j_list_lock);
+	  if (list_empty(&jh->b_jh_wait_list)){
+	    list_add_tail(&jh->b_jh_wait_list, &transaction->t_jh_wait_list);
+	    spin_unlock(&journal->j_list_lock);
+	  } else {
+	    wake_up(&journal->j_wait_cpsetup);
+	    spin_unlock(&journal->j_list_lock);
+	    unlock_buffer(bh);
+	    jbd_unlock_bh_state(bh);
+	    wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
+	    goto repeat;
+	  }
+	  
+
+#else
 		wake_up(&journal->j_wait_cpsetup);
 		unlock_buffer(bh);
 		jbd_unlock_bh_state(bh);
 		wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
 		goto repeat;
+#endif
 	}
 #ifdef CPWORK
 	if (!(jh->b_transaction == transaction || jh->b_next_transaction == transaction) 

@@ -103,7 +103,7 @@ struct journal_head {
 	struct jbd2_buffer_trigger_type *b_frozen_triggers;
 
   /* UFS */
-  struct list_head b_next_jh_list;
+  struct list_head b_jh_wait_list;
 };
 
 #endif		/* JOURNAL_HEAD_H_INCLUDED */

@@ -641,7 +641,7 @@ struct transaction_s
 	struct list_head	t_private_list;
 
 	/* UFS */
-	struct list_head	jh_wait;
+	struct list_head	t_jh_wait_list;
 	struct list_head	io_bufs;
 	struct list_head	log_bufs;
 	struct buffer_head	*cbh;

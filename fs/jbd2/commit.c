@@ -1389,6 +1389,7 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	if (JBD2_HAS_INCOMPAT_FEATURE(journal, JBD2_FEATURE_INCOMPAT_CSUM_V2))
 		csum_size = sizeof(struct jbd2_journal_block_tail);
 
+
 	/*
 	 * First job: lock down the current transaction and wait for
 	 * all outstanding updates to complete.
@@ -1420,6 +1421,19 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 
 	commit_transaction = journal->j_running_transaction;
 	J_ASSERT(commit_transaction->t_state == T_RUNNING);
+
+	/* UFS : delayed commit */
+#ifdef DELAYED_COMMIT
+	spin_lock(&journal->j_list_lock);
+	while(!list_empty(&commit_transaction->t_jh_wait_list)){
+	  wake_up(&journal->j_wait_cpsetup);
+	  spin_unlock(&journal->j_list_lock);
+	  wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
+	  spin_lock(&journal->j_list_lock);
+	}
+	spin_unlock(&journal->j_list_lock);
+
+#endif
 
 	trace_jbd2_start_commit(journal, commit_transaction);
 	jbd_debug(1, "JBD2: starting commit of transaction %d\n",
@@ -2121,6 +2135,9 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 {
 	transaction_t *commit_transaction;
 	struct journal_head *jh;
+#ifdef DELAYED_COMMIT
+	struct journal_head *next_jh; /* Delayed commit */
+#endif
 	int err = 0;
 
 #ifdef JBD2CPDEBUG
@@ -2402,6 +2419,13 @@ restart_loop:
 		__jbd2_journal_drop_transaction(journal, commit_transaction);
 		jbd2_journal_free_transaction(commit_transaction);
 	}
+
+	/* delayed commit*/
+#ifdef DELAYED_COMMIT
+	list_for_each_entry_safe(jh, next_jh, &commit_transaction->t_jh_wait_list, b_jh_wait_list) {
+	  list_del(&jh->b_jh_wait_list);
+	}
+#endif
 	spin_unlock(&journal->j_list_lock);
 	write_unlock(&journal->j_state_lock);
 	//wake_up(&journal->j_wait_done_commit);
