@@ -2108,6 +2108,10 @@ printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
 #endif
 	spin_lock(&journal->j_cplist_lock);
 
+#ifdef DELAYED_COMMIT
+	INIT_LIST_HEAD(&commit_transaction->t_jh_wait_list);
+#endif
+
 	if (journal->j_cpsetup_transactions == NULL) {
 		journal->j_cpsetup_transactions = commit_transaction;
 		commit_transaction->t_cpnext = commit_transaction;
