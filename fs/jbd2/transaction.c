@@ -107,6 +107,9 @@ jbd2_get_transaction(journal_t *journal, transaction_t *transaction)
 	/* UFS */
 	INIT_LIST_HEAD(&transaction->io_bufs);
 	INIT_LIST_HEAD(&transaction->log_bufs);
+#ifdef DELAYED_COMMIT
+	INIT_LIST_HEAD(&transaction->t_jh_wait_list);
+#endif
 	transaction->cbh = NULL;
 	return transaction;
 }
@@ -692,22 +695,33 @@ do_get_write_access(handle_t *handle, struct journal_head *jh,
 	/* UFS */
 	if (jh->b_transaction && jh->b_transaction != transaction) {
 #ifdef DELAYED_COMMIT
-	  /* insert jh into the buffer list of transaction */
-	  /* list_lock*/
-	  spin_lock(&journal->j_list_lock);
-	  if (list_empty(&jh->b_jh_wait_list)){
-	    list_add_tail(&jh->b_jh_wait_list, &transaction->t_jh_wait_list);
-	    spin_unlock(&journal->j_list_lock);
-	  } else {
-	    wake_up(&journal->j_wait_cpsetup);
-	    spin_unlock(&journal->j_list_lock);
-	    unlock_buffer(bh);
-	    jbd_unlock_bh_state(bh);
-	    wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
-	    goto repeat;
-	  }
-	  
-
+		/* insert jh into the buffer list of transaction */
+		spin_lock(&journal->j_list_lock);
+		if (list_empty(&jh->b_jh_wait_list)){
+			/*
+			 * If jh->b_transaction is not NULL and jh->b_transaction 
+			 * and transaction(usually running transaction) are different, 
+			 * It is situation on Journal Conflict. So, We have to add 
+			 * journal head to t_jh_wait_list of transaction when only 
+			 * journal head is not in t_jh_wait_list of another transaction.
+			 */
+			list_add_tail(&jh->b_jh_wait_list, &transaction->t_jh_wait_list);
+		} else if (jh->b_next_transaction != transaction) {
+			/*
+			 * When journal head is in t_jh_wait_list of any transaction 
+			 * that is not transaction(usually running transaction),
+			 * we have to wait until this transaction's commit complete.
+			 * However, when jh->b_next_transaction is transaction,
+			 * we just pass by this code.
+			 */
+			wake_up(&journal->j_wait_cpsetup);
+			spin_unlock(&journal->j_list_lock);
+			unlock_buffer(bh);
+			jbd_unlock_bh_state(bh);
+			wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
+			goto repeat;
+		}
+		spin_unlock(&journal->j_list_lock);
 #else
 		wake_up(&journal->j_wait_cpsetup);
 		unlock_buffer(bh);
@@ -2535,6 +2549,15 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 	J_ASSERT_JH(jh, jbd_is_locked_bh_state(bh));
 	if (jh->b_transaction)
 		assert_spin_locked(&jh->b_transaction->t_journal->j_list_lock);
+
+#ifdef DELAYED_COMMIT
+	/* 
+	 * When journal head move to b_next_transaction,
+	 * we have to remove this journal head from
+	 * t_jh_wait_list. 
+	 */
+	list_del_init(&jh->b_jh_wait_list);
+#endif
 
 	/* If the buffer is now unused, just drop it. */
 	if (jh->b_next_transaction == NULL) {

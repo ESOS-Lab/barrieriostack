@@ -322,7 +322,22 @@ loop:
 		jbd2_journal_cpsetup_transaction(journal);
 		//write_lock(&journal->j_state_lock);
 		goto loop;
+#ifdef DELAYED_COMMIT
+	} else if (journal->j_running_transaction) {
+		/*
+		 * If there is running transaction when there is no cpsetup transaction(commiting transaction),
+		 * kjournald2cp(flush thread) can't awake commit thread(kjournald2).
+		 * Also, If there is no cpsetup transaction, the conflict block have to be not in t_jh_wait_list of running transaction.
+		 * So, If there is no cpsetup transaction, flush thread clear t_jh_wait_list of running transaction artificially.
+		 */
+		struct journal_head *jh, *next_jh;
+		transaction_t *commit_transaction = journal->j_running_transaction;
+		list_for_each_entry_safe(jh, next_jh, &commit_transaction->t_jh_wait_list, b_jh_wait_list) {
+			list_del_init(&jh->b_jh_wait_list);
+		}
+#endif
 	}
+
 	spin_unlock(&journal->j_cplist_lock);
 	//write_unlock(&journal->j_state_lock);
 	//commit_sequence  journal->j_commit_request);
@@ -2733,6 +2748,14 @@ repeat:
 	if (!buffer_jbd(bh)) {
 		new_jh = journal_alloc_journal_head();
 		memset(new_jh, 0, sizeof(*new_jh));
+#ifdef DELAYED_COMMIT
+		/* journal head have b_jh_wait_list that is list element.
+		 * BFS checks the pointing information of b_jh_wait_list 
+		 * and judges whether or not it is included in t_jh_wait_list 
+		 * of any transaction. So We have to initialize b_jh_wait_list's
+		 * pointing information as use INIT_LIST_HEAD */
+		INIT_LIST_HEAD(&next_jh->b_jh_wait_list);
+#endif
 	}
 
 	jbd_lock_bh_journal_head(bh);

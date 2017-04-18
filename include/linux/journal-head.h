@@ -10,6 +10,9 @@
 #ifndef JOURNAL_HEAD_H_INCLUDED
 #define JOURNAL_HEAD_H_INCLUDED
 
+/* This is macro for 'Delayed Commit' in BarrierFS */
+#define DELAYED_COMMIT
+
 typedef unsigned int		tid_t;		/* Unique transaction ID */
 typedef struct transaction_s	transaction_t;	/* Compound transaction type */
 
@@ -102,8 +105,8 @@ struct journal_head {
 	/* Trigger type for the committing transaction's frozen data */
 	struct jbd2_buffer_trigger_type *b_frozen_triggers;
 
-  /* UFS */
-  struct list_head b_jh_wait_list;
+	/* UFS */
+	struct list_head b_jh_wait_list;
 };
 
 #endif		/* JOURNAL_HEAD_H_INCLUDED */

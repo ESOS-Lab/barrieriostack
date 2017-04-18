@@ -1424,15 +1424,19 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 
 	/* UFS : delayed commit */
 #ifdef DELAYED_COMMIT
+	/* 
+	 * If t_jh_wait_list of running transaction is not empty, there is 
+	 * conflict block that is be transferring. So we wait in here until
+	 * t_jh_wait_list empty.
+	 */
 	spin_lock(&journal->j_list_lock);
 	while(!list_empty(&commit_transaction->t_jh_wait_list)){
-	  wake_up(&journal->j_wait_cpsetup);
-	  spin_unlock(&journal->j_list_lock);
-	  wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
-	  spin_lock(&journal->j_list_lock);
+		wake_up(&journal->j_wait_cpsetup);
+		spin_unlock(&journal->j_list_lock);
+		wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
+		spin_lock(&journal->j_list_lock);
 	}
 	spin_unlock(&journal->j_list_lock);
-
 #endif
 
 	trace_jbd2_start_commit(journal, commit_transaction);
@@ -2108,10 +2112,6 @@ printk(KERN_ERR "UFS: %s: %d.\n", __func__, __LINE__);
 #endif
 	spin_lock(&journal->j_cplist_lock);
 
-#ifdef DELAYED_COMMIT
-	INIT_LIST_HEAD(&commit_transaction->t_jh_wait_list);
-#endif
-
 	if (journal->j_cpsetup_transactions == NULL) {
 		journal->j_cpsetup_transactions = commit_transaction;
 		commit_transaction->t_cpnext = commit_transaction;
@@ -2139,9 +2139,6 @@ void jbd2_journal_cpsetup_transaction(journal_t *journal)
 {
 	transaction_t *commit_transaction;
 	struct journal_head *jh;
-#ifdef DELAYED_COMMIT
-	struct journal_head *next_jh; /* Delayed commit */
-#endif
 	int err = 0;
 
 #ifdef JBD2CPDEBUG
@@ -2424,12 +2421,6 @@ restart_loop:
 		jbd2_journal_free_transaction(commit_transaction);
 	}
 
-	/* delayed commit*/
-#ifdef DELAYED_COMMIT
-	list_for_each_entry_safe(jh, next_jh, &commit_transaction->t_jh_wait_list, b_jh_wait_list) {
-	  list_del(&jh->b_jh_wait_list);
-	}
-#endif
 	spin_unlock(&journal->j_list_lock);
 	write_unlock(&journal->j_state_lock);
 	//wake_up(&journal->j_wait_done_commit);
