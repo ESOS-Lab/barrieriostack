@@ -662,4 +662,6 @@ const struct file_operations f2fs_dir_operations = {
 	.readdir	= f2fs_readdir,
 	.fsync		= f2fs_sync_file,
 	.unlocked_ioctl	= f2fs_ioctl,
+	/* UFS */
+	.fbarrier	= f2fs_fbarrier_file,
 };

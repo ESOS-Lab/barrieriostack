@@ -1115,8 +1115,15 @@ continue_unlock:
 		goto next_step;
 	}
 
-	if (wrote)
-		f2fs_submit_bio(sbi, NODE, wbc->sync_mode == WB_SYNC_ALL);
+	//if (wrote)
+	//	f2fs_submit_bio(sbi, NODE, wbc->sync_mode == WB_SYNC_ALL);
+	/* UFS */
+	if (wrote){
+		if(wbc->sync_mode == WB_BARRIER_ALL)
+			f2fs_submit_bio_barrier(sbi, NODE, wbc->sync_mode == WB_BARRIER_ALL);
+		else
+			f2fs_submit_bio(sbi, NODE, wbc->sync_mode == WB_SYNC_ALL);
+	}
 
 	return nwritten;
 }

@@ -712,12 +712,64 @@ static void do_submit_bio(struct f2fs_sb_info *sbi,
 	}
 }
 
+/* UFS */
+static void do_submit_bio_barrier(struct f2fs_sb_info *sbi,
+                               enum page_type type, bool sync)
+{
+	//int rw = sync ? WRITE_SYNC : WRITE;
+	long long rw = sync ? WRITE_BARRIER : WRITE_ORDERED;
+
+	enum page_type btype = type > META ? META : type;
+	/*
+	   if (type >= META_FLUSH)
+	   rw = WRITE_FLUSH_FUA;
+
+	   if (btype == META)
+	   rw |= REQ_META;
+	 */     
+	//enum page_type btype = type;
+
+	if (sbi->bio[btype]) {
+		struct bio_private *p = sbi->bio[btype]->bi_private;
+		p->sbi = sbi;
+		sbi->bio[btype]->bi_end_io = f2fs_end_io_write;
+
+		trace_f2fs_do_submit_bio(sbi->sb, btype, sync, sbi->bio[btype]);
+		/*
+		   if (type == META_FLUSH) {
+		   DECLARE_COMPLETION_ONSTACK(wait);
+		   p->is_sync = true;
+		   p->wait = &wait;
+		   submit_bio(rw, sbi->bio[btype]);
+		   wait_for_completion(&wait);
+		   } else {
+		   p->is_sync = false;
+		   submit_bio(rw, sbi->bio[btype]);
+		   }
+		 */
+		p->is_sync = false;
+		
+		submit_bio(rw, sbi->bio[btype]);
+		sbi->bio[btype] = NULL;
+	}
+}
+
+
 void f2fs_submit_bio(struct f2fs_sb_info *sbi, enum page_type type, bool sync)
 {
 	down_write(&sbi->bio_sem);
 	do_submit_bio(sbi, type, sync);
 	up_write(&sbi->bio_sem);
 }
+
+/* UFS */
+void f2fs_submit_bio_barrier(struct f2fs_sb_info *sbi, enum page_type type, bool sync)
+{
+	down_write(&sbi->bio_sem);
+	do_submit_bio_barrier(sbi, type, sync);
+	up_write(&sbi->bio_sem);
+}
+
 
 static void submit_write_page(struct f2fs_sb_info *sbi, struct page *page,
 				block_t blk_addr, enum page_type type)

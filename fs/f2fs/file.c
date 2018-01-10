@@ -118,7 +118,15 @@ int f2fs_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 		return 0;
 
 	trace_f2fs_sync_file_enter(inode);
-	ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	//ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	/* UFS */
+	if (datasync && !(inode->i_state & I_DIRTY_DATASYNC)){ /* If flushing the Data, not Node*/
+		ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	} else {
+		ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
+	}
+
+
 	if (ret) {
 		trace_f2fs_sync_file_exit(inode, need_cp, datasync, ret);
 		return ret;
@@ -161,6 +169,88 @@ out:
 	return ret;
 }
 
+/* UFS */
+int f2fs_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync)
+{
+	struct inode *inode = file->f_mapping->host;
+	struct f2fs_sb_info *sbi = F2FS_SB(inode->i_sb);
+	int ret = 0;
+	bool need_cp = false;
+	//bool needs_barrier = false;
+	/*
+	   struct writeback_control wbc = {
+	   .sync_mode = WB_SYNC_ALL,
+	   .nr_to_write = LONG_MAX,
+	   .for_reclaim = 0,
+	   };
+	 */
+	struct writeback_control wbc = {
+		.sync_mode = WB_BARRIER_ALL,
+		.nr_to_write = LONG_MAX,
+		.for_reclaim = 0,
+	};
+	if (inode->i_sb->s_flags & MS_RDONLY)
+		return 0;
+
+	trace_f2fs_sync_file_enter(inode);
+	//ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	if (datasync && !(inode->i_state & I_DIRTY_DATASYNC)){ // If flushing Data, not Node
+		ret = filemap_ordered_write_range(inode->i_mapping, start, end);
+		ret = filemap_fdatadispatch_range(inode->i_mapping, start, end);
+	} else {
+		ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
+	}
+
+	if (ret) {
+		trace_f2fs_sync_file_exit(inode, need_cp, datasync, ret);
+		return ret;
+	}
+
+
+	/* guarantee free sections for fsync */
+	f2fs_balance_fs(sbi); //GY_DEBUG
+	mutex_lock(&inode->i_mutex);
+
+	if (datasync && !(inode->i_state & I_DIRTY_DATASYNC)){
+		goto out;
+	}
+
+	if (!S_ISREG(inode->i_mode) || inode->i_nlink != 1) {
+		need_cp = true;
+	}
+	else if (is_cp_file(inode)) {
+		need_cp = true;
+	}
+	else if (!space_for_roll_forward(sbi)) {
+		need_cp = true;
+	}
+	else if (!is_checkpointed_node(sbi, F2FS_I(inode)->i_pino)) {
+		need_cp = true;
+	}
+	if (need_cp) {
+		/* all the dirty node pages should be flushed for POR */
+		ret = f2fs_sync_fs(inode->i_sb, 1);
+	} else {
+		/* if there is no written node page, write its inode page */
+		while (!sync_node_pages(sbi, inode->i_ino, &wbc)) {
+			ret = f2fs_write_inode(inode, NULL);
+			if (ret)
+				goto out;
+		}
+		//filemap_fdatawait_range(sbi->node_inode->i_mapping,
+		//                                      0, LONG_MAX); /* Wait-on-Transfer */
+		filemap_fdatadispatch_range(sbi->node_inode->i_mapping,
+				0, LONG_MAX); /* Wait-on-Dispatch */
+		//ret = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+	}
+
+out:
+	mutex_unlock(&inode->i_mutex);
+	trace_f2fs_sync_file_exit(inode, need_cp, datasync, ret);
+	return ret;
+}
+
+
 static int f2fs_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	file_accessed(file);
@@ -175,7 +265,6 @@ static int truncate_data_blocks_range(struct dnode_of_data *dn, int count)
 	struct f2fs_node *raw_node;
 	__le32 *addr;
 
-	raw_node = page_address(dn->node_page);
 	addr = blkaddr_in_node(raw_node) + ofs;
 
 	for ( ; count > 0; count--, addr++, dn->ofs_in_node++) {
@@ -660,4 +749,6 @@ const struct file_operations f2fs_file_operations = {
 #endif
 	.splice_read	= generic_file_splice_read,
 	.splice_write	= generic_file_splice_write,
+	/* UFS Project */
+	.fbarrier	= f2fs_fbarrier_file,
 };
