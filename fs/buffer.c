@@ -77,7 +77,7 @@ EXPORT_SYMBOL(__lock_buffer);
 /* UFS */
 void __lock_buffer_dispatch(struct buffer_head *bh)
 {
-    wait_on_bit_lock(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
+	wait_on_bit_lock(&bh->b_state, BH_Dispatch, sleep_on_buffer, TASK_UNINTERRUPTIBLE);
 }
 EXPORT_SYMBOL(__lock_buffer_dispatch);
 
@@ -171,8 +171,10 @@ void end_buffer_write_sync(struct buffer_head *bh, int uptodate)
 		set_buffer_write_io_error(bh);
 		clear_buffer_uptodate(bh);
 	}
+
 	/* UFS */
 	wake_up_buffer_dispatch(bh);
+
 	unlock_buffer(bh);
 	put_bh(bh);
 }
@@ -3073,11 +3075,11 @@ EXPORT_SYMBOL(submit_bh);
 /* UFS */
 int dispatch_bio_bh(struct bio *bio)
 {
-  if (bio->bi_end_io == end_bio_bh_io_sync && bio->bi_private) {
-    wake_up_buffer_dispatch(bio->bi_private);
-    return 1;
-  }
-  return 0;
+	if (bio->bi_end_io == end_bio_bh_io_sync && bio->bi_private) {
+		wake_up_buffer_dispatch(bio->bi_private);
+		return 1;
+	}
+	return 0;
 }
 EXPORT_SYMBOL(dispatch_bio_bh);
 
@@ -3130,8 +3132,8 @@ int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_fl
 	}
 
 	bio_get(bio);
+	
 	/* UFS */
-	//set_buffer_dispatch(bh);
 	lock_buffer_dispatch(bh);
 	submit_bio64(rw, bio);
 

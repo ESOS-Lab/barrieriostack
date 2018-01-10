@@ -722,7 +722,7 @@ EXPORT_SYMBOL(end_page_writeback);
 /* UFS */
 void end_page_dispatch(struct page *page)
 {        
-        TestClearPageDispatch(page);
+	TestClearPageDispatch(page);
 	smp_mb__after_clear_bit();
 	wake_up_page(page, PG_dispatch);
 }

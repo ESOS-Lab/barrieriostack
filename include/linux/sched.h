@@ -77,8 +77,6 @@ struct epoch {
 	unsigned int error_flags;
 
         atomic_t e_count;
-
-	//struct list_head list;
 };
 
 /*
@@ -1484,10 +1482,6 @@ struct task_struct {
         struct epoch *__epoch;
 	unsigned int barrier_fail;
 	unsigned int epoch_fail;
-	//struct list_head epoch_pending;
-	//struct list_head epoch_dispatch;
-	//struct list_head epoch_complte;
-	//struct list_head epoch_error;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */

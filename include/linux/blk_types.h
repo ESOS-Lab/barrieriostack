@@ -39,7 +39,7 @@ struct bio {
 	struct block_device	*bi_bdev;
 	unsigned long		bi_flags;	/* status, command, etc */
 	unsigned long long	bi_rw;		/* UFS */
-        struct epoch            *bi_epoch;      /* UFS epoch */
+	struct epoch            *bi_epoch;      /* UFS epoch */
 	/*unsigned long		bi_rw;*/		/* bottom bits READ/WRITE,
 						 * top bits priority
 						 */
@@ -201,7 +201,7 @@ enum rq_flag_bits {
 #define REQ_WRITE_SAME		(1 << __REQ_WRITE_SAME)
 #define REQ_NOIDLE		(1 << __REQ_NOIDLE)
 
-// UFS project 
+/* UFS project */
 #define REQ_ORDERED		(1ULL << __REQ_ORDERED)
 #define REQ_BARRIER		(1ULL << __REQ_BARRIER)
 

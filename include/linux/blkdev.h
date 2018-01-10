@@ -206,7 +206,6 @@ struct request {
 	/* for UFS */
 	struct epoch_link *epoch_link;
 	struct epoch_link *epoch_link_tail;
-	//struct list_head epoch_req_list;
 };
 
 static inline unsigned short req_get_ioprio(struct request *req)
@@ -1089,7 +1088,6 @@ static inline void put_epoch(struct epoch *epoch)
 extern void blk_issue_barrier_plug(struct blk_plug *);
 extern void blk_request_dispatched(struct request *req);
 extern void blk_start_new_epoch(struct request_queue *q);
-//extern void blk_start_epoch(void);
 extern void blk_start_epoch(struct request_queue *q);
 extern void blk_finish_epoch(void);
 

@@ -109,6 +109,8 @@ static int __sync_inode(struct inode *inode, int datasync)
  *
  * What we do is just kick off a commit and wait on it.  This will snapshot the
  * inode to disk.
+ *
+ * For Durability Guarantee.
  */
 
 int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
@@ -125,15 +127,10 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	trace_ext4_sync_file_enter(file, datasync);
 
 	if (datasync) {
-	  // current->barrier_fail = 0;
 	        ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
-	        //ret = filemap_ordered_write_range(inode->i_mapping, start, end);
-		//ret = filemap_fdatawait_range(inode->i_mapping, start, end);
 	}
 	else
 	        ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
-
-	//      ret = filemap_ordered_write_range(inode->i_mapping, start, end);
 	
 	if (ret)
 		return ret;
@@ -177,16 +174,16 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 	if (journal->j_flags & JBD2_BARRIER &&
 	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
 		needs_barrier = true;
-
-	//ret = jbd2_complete_transaction(journal, commit_tid);
-
-	ret = jbd2_complete_cpsetup_transaction(journal, commit_tid);
 	
+	/* UFS */
+	//ret = jbd2_complete_transaction(journal, commit_tid);
+	ret = jbd2_complete_cpsetup_transaction(journal, commit_tid);
+
 	if (needs_barrier) {
-	  filemap_fdatawait_range(inode->i_mapping, start, end);
-	  err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
-	  if (!ret)
-	    ret = err;
+		filemap_fdatawait_range(inode->i_mapping, start, end);
+		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
+		if (!ret)
+			ret = err;
 	} 
 
  out:
@@ -196,8 +193,14 @@ int ext4_sync_file(struct file *file, loff_t start, loff_t end, int datasync)
 }
 
 /*
- * UFS project add
- * ext4_sync_file copy.
+ * UFS project: copy of ext4_sync_file.
+ *
+ * This is only called from sys_fbarrier(), sys_fdatabarrier().
+ * There cannot be a transaction open by this task.
+ * Another task could have dirtied this inode.  Its data can be in any
+ * state in the journalling system.
+ *
+ * For Ordering Guarantee.
  */
 
 int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync)
@@ -205,15 +208,13 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	struct inode *inode = file->f_mapping->host;
 	struct ext4_inode_info *ei = EXT4_I(inode);
 	journal_t *journal = EXT4_SB(inode->i_sb)->s_journal;
-	int ret;//, err;
+	int ret;
 	tid_t commit_tid;
 	bool needs_barrier = false;
 
 	J_ASSERT(ext4_journal_current_handle() == NULL);
 
 	trace_ext4_sync_file_enter(file, datasync);
-
-	//printk("in ext4_fbarrier_file FN\n");
 
 	if (datasync) {
 	        current->barrier_fail = 0;
@@ -225,8 +226,6 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	else
 	        ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
 	
-	//ret = filemap_write_and_wait_range(inode->i_mapping, start, end);
-
 	if (ret)
 		return ret;
 	mutex_lock(&inode->i_mutex);
@@ -267,28 +266,14 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
 	
 	if (datasync && needs_barrier) {
-	  printk(KERN_ERR "UFS: %s: BARRIER_FAIL\n", __func__);
-	  //commit_tid = ei->i_sync_tid;		  
-	  commit_tid = ei->i_sync_tid;
-	  current->barrier_fail = 0;
- 
+		printk(KERN_ERR "UFS: %s: BARRIER_FAIL\n", __func__);
+		commit_tid = ei->i_sync_tid;
+		current->barrier_fail = 0;
 	}
 	
-
-	/*
-	if (journal->j_flags & JBD2_BARRIER &&
-	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
-		needs_barrier = true;
-	*/
 	ret = jbd2_complete_transaction(journal, commit_tid);
 	  
-	/*
-	if (needs_barrier) {
-		err = blkdev_issue_flush(inode->i_sb->s_bdev, GFP_KERNEL, NULL);
-		if (!ret)
-			ret = err;
-	}
-	*/
+
  out:
 	mutex_unlock(&inode->i_mutex);
 	trace_ext4_sync_file_exit(inode, ret);

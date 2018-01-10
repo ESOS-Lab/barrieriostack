@@ -2291,7 +2291,9 @@ static int write_cache_pages_da(handle_t *handle,
 	index = wbc->range_start >> PAGE_CACHE_SHIFT;
 	end = wbc->range_end >> PAGE_CACHE_SHIFT;
 
-	if (wbc->sync_mode == WB_SYNC_ALL /* UFS */ || wbc->sync_mode == WB_ORDERED_ALL || wbc->sync_mode == WB_BARRIER_ALL || wbc->tagged_writepages)
+	if (wbc->sync_mode == WB_SYNC_ALL
+		/* UFS */ || wbc->sync_mode == WB_ORDERED_ALL || wbc->sync_mode == WB_BARRIER_ALL
+		|| wbc->tagged_writepages)
 		tag = PAGECACHE_TAG_TOWRITE;
 	else
 		tag = PAGECACHE_TAG_DIRTY;
@@ -2524,6 +2526,7 @@ static int ext4_da_writepages(struct address_space *mapping,
 retry:
 	if (wbc->sync_mode == WB_SYNC_ALL || wbc->tagged_writepages)
 		tag_pages_for_writeback(mapping, index, end);
+	
 	/* UFS */
 	if (wbc->sync_mode == WB_ORDERED_ALL || wbc->sync_mode == WB_BARRIER_ALL)
  	        tag_pages_for_writeback(mapping, index, end);
@@ -2597,6 +2600,7 @@ retry:
 			 */
 			break;
 	}
+
 	/* UFS */
 	if (wbc->sync_mode == WB_BARRIER_ALL) {
 		blk_issue_barrier_plug(&plug);

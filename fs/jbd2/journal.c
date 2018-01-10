@@ -87,7 +87,7 @@ EXPORT_SYMBOL(jbd2_journal_ack_err);
 EXPORT_SYMBOL(jbd2_journal_clear_err);
 EXPORT_SYMBOL(jbd2_log_wait_commit);
 EXPORT_SYMBOL(jbd2_log_start_commit);
-EXPORT_SYMBOL(jbd2_log_flush_commit);
+EXPORT_SYMBOL(jbd2_log_flush_commit); /* UFS */
 EXPORT_SYMBOL(jbd2_journal_start_commit);
 EXPORT_SYMBOL(jbd2_journal_force_commit_nested);
 EXPORT_SYMBOL(jbd2_journal_wipe);
@@ -172,12 +172,6 @@ static int kjournald2(void *arg)
 {
 	journal_t *journal = arg;
 	transaction_t *transaction;
-	/*
-	int commit_iter = 1;
-	int cpsetup_iter = 1;
-	int commit = 0;
-	int cpsetup = 0;
-	*/
 
 	/*
 	 * Set up an interval timer which can be used to trigger a commit wakeup
@@ -209,25 +203,10 @@ loop:
 		jbd_debug(1, "OK, requests differ\n");
 		write_unlock(&journal->j_state_lock);
 		del_timer_sync(&journal->j_commit_timer);
-		/* UFS */
 		//jbd2_journal_commit_transaction(journal);
+		/* UFS */
 		jbd2_journal_barrier_commit_transaction(journal);
-		/*
-		commit++;
-		if (journal->j_commit_sequence > journal->j_cpsetup_sequence+2)
-		{
-		  DEFINE_WAIT(wait);
-		  wake_up(&journal->j_wait_commit);
-		  prepare_to_wait(&journal->j_wait_done_cpsetup, &wait, TASK_INTERRUPTIBLE);
-		  schedule();		  
-		  finish_wait(&journal->j_wait_done_cpsetup, &wait);
-		  cpsetup++;
-		 }
-		if (cpsetup == cpsetup_iter)
-		  cpsetup = 0;
-		if (commit == commit_iter)
-		  commit = 0;
-		*/
+
 		wake_up(&journal->j_wait_commit);
 		write_lock(&journal->j_state_lock);
 		goto loop;
@@ -294,33 +273,23 @@ end_loop:
 /*
  * UFS: kjounrald2cp: kernel thread which is executed when I/O compelte.
  */
-
 static int kjournald2cp(void *arg)
 {
 	journal_t *journal = arg;
-	//transaction_t *transacion;
 
 	set_freezable();
-	//setup_timer(&journal->j_commit_timer, commit_timeout,
-	//		(unsigned long)current);
 
 	journal->j_cptask = current;
 	wake_up(&journal->j_wait_done_cpsetup);
 
-	//write_lock(&journal->j_state_lock);
-	
 loop:
 	if (journal->j_flags & JBD2_UNMOUNT)
 		goto end_loop;
 
 	spin_lock(&journal->j_cplist_lock);
-	if (journal->j_cpsetup_transactions/*journal->j_commit_sequence != journal->j_cpsetup_sequence*/) {	  
-	  //write_unlock(&journal->j_state_lock);
-	  spin_unlock(&journal->j_cplist_lock);
-		//if (journal->j_cpsetup_sequence < journal->j_commit_sequence)
-		//	;
+	if (journal->j_cpsetup_transactions) {	  
+		spin_unlock(&journal->j_cplist_lock);
 		jbd2_journal_cpsetup_transaction(journal);
-		//write_lock(&journal->j_state_lock);
 		goto loop;
 #ifdef DELAYED_COMMIT
 	} else if (journal->j_running_transaction) {
@@ -339,45 +308,28 @@ loop:
 	}
 
 	spin_unlock(&journal->j_cplist_lock);
-	//write_unlock(&journal->j_state_lock);
-	//commit_sequence  journal->j_commit_request);
 
-	//wake_up(&journal->j_wait_done_cpsetup);
 	if (freezing(current)) {
-	  //	write_unlock(&journal->j_state_lock);
 		try_to_freeze();
-		//	write_lock(&journal->j_state_lock);
 	} else {
 		DEFINE_WAIT(wait);
 		int should_sleep = 1;
 
 		prepare_to_wait(&journal->j_wait_cpsetup, &wait,
 				TASK_INTERRUPTIBLE);
-		if (journal->j_cpsetup_transactions)//j_commit_sequence != journal->j_commit_reqeust)
+		
+		if (journal->j_cpsetup_transactions)
 			should_sleep = 0;
-		//if (journal->j_cpsetup_sequence != journal->j_commit_sequence)
-		//		should_sleep = 0;
-		//transaction = journal->j_running_transaction;
-		//if (transaction && time_after_eq(jiffies,
-		//				transaction->t_expires))
-		//	should_sleep = 0;
+		
 		if (should_sleep) {
-		  //	write_unlock(&journal->j_state_lock);
 			schedule();
-			//	write_lock(&journal->j_state_lock);
 		}
 		finish_wait(&journal->j_wait_cpsetup, &wait);
 	}
 
-	//transaction = journal->j_running_transaction;
-	//if (transaction && time_after_eq(jiffies, transaction->t_expires)) {
-	//	journal->j_commit_request = transaction->t_tid;
-	//}
 	goto loop;
 
 end_loop:
-	//write_unlock(&journal->j_state_lock);
-	//del_timer_sync(&journal->j_commit_timer);
 	journal->j_cptask = NULL;
 	wake_up(&journal->j_wait_done_cpsetup);
 	return 0;
@@ -425,6 +377,8 @@ static int jbd2_journal_start_cpthread(journal_t * journal)
 	wait_event(journal->j_wait_done_cpsetup, journal->j_cptask != NULL);
 	return 0;
 }
+
+/* UFS */
 static void journal_kill_cpthread(journal_t *journal)
 {
 	write_lock(&journal->j_state_lock);
@@ -455,7 +409,7 @@ static void journal_kill_cpthread(journal_t *journal)
  * marked as an escaped buffer in the corresponding log descriptor
  * block.  The missing word can then be restored when the block is read
  * during recovery.
- *
+ */
  * If the source buffer has already been modified by a new transaction
  * since we took the last commit snapshot, we use the frozen copy of
  * that data for IO. If we end up using the existing buffer_head's data
@@ -724,8 +678,12 @@ int __jbd2_log_flush_commit(journal_t *journal, tid_t target)
 		 * commit thread.  We do _not_ do the commit ourselves.
 		 */
 
-		journal->j_commit_request = target;
+		journal->j_commit_request = target; 
+		/*
+		 * UFS: FLUSH ON (for Durability Guarantee)
+		 */
 		journal->j_running_transaction->t_flush_trigger = 1;
+
 		jbd_debug(1, "JBD2: requesting commit %d/%d\n",
 			  journal->j_commit_request,
 			  journal->j_commit_sequence);
@@ -744,6 +702,7 @@ int __jbd2_log_flush_commit(journal_t *journal, tid_t target)
 	return 0;
 }
 
+/* UFS */
 int jbd2_log_flush_commit(journal_t *journal, tid_t tid)
 {
 	int ret;
@@ -817,16 +776,8 @@ int jbd2_journal_start_commit(journal_t *journal, tid_t *ptid)
 		if (ptid)
 			*ptid = journal->j_committing_transaction->t_tid;
 		ret = 1;
-	}// else if (journal->j_cpsetup_transactions) {
-	  /* UFS */
-	  /* spin_lock(&journal->j_cplist_lock);
-	  if (journal->j_cpsetup_transactions) {
-	    if (ptid)
-	      *ptid = journal->j_cpsetup_transactions->t_tid;	    
-	  }
-	  spin_unlock(&journal->j_cplist_lock);
-	  */
-	//}	
+	}
+	
 	write_unlock(&journal->j_state_lock);
 	return ret;
 }
@@ -847,12 +798,9 @@ int jbd2_trans_will_send_data_barrier(journal_t *journal, tid_t tid)
 	read_lock(&journal->j_state_lock);
 	/* Transaction already committed? */
 	/* UFS */
-
 	if (tid_geq(journal->j_commit_sequence, tid)) {
-	  goto out;
+		goto out;
 	}
-	//if (tid_geq(journal->j_flush_sequence, tid))
-	//  goto out;		
 	
 	ret = 1;
 	goto out;
@@ -921,19 +869,8 @@ int jbd2_log_wait_cpsetup(journal_t *journal, tid_t tid)
 	int err = 0;
 
 	read_lock(&journal->j_state_lock);
-	/*
-#ifdef CONFIG_JBD2_DEBUG
-	if (!tid_geq(journal->j_commit_request, tid)) {
-		printk(KERN_EMERG
-		       "%s: error: j_commit_request=%d, tid=%d\n",
-		       __func__, journal->j_commit_request, tid);
-	}
-#endif
-	*/
 
 	while (tid_gt(tid, journal->j_cpsetup_sequence)) {
-	  //printk( KERN_ERR "UFS: JBD2: want %d, j_cpsetup_sequence=%d, j_cpcommit_sequence=%d\n",
-	  //	  tid, journal->j_cpsetup_sequence, journal->j_commit_sequence);
 		jbd_debug(1, "JBD2: want %d, j_cpsetup_sequence=%d\n",
 				  tid, journal->j_cpsetup_sequence);
 		wake_up(&journal->j_wait_cpsetup);
@@ -973,14 +910,8 @@ int jbd2_complete_transaction(journal_t *journal, tid_t tid)
 			goto wait_commit;
 		}
 	} else if (!(journal->j_committing_transaction &&
-		    journal->j_committing_transaction->t_tid == tid))
-                   /*(!tid_gt(tid, journal->j_commit_sequence)) */	  
-	  {
-	    //spin_lock(&journal->j_cplist_lock);
-	    //if (!journal->j_cpsetup_transactions)
+		     journal->j_committing_transaction->t_tid == tid))
 		need_to_wait = 0;
-		//spin_unlock(&journal->j_cplist_lock);
-	  }
 	read_unlock(&journal->j_state_lock);
 	if (!need_to_wait)
 		return 0;
@@ -992,30 +923,30 @@ EXPORT_SYMBOL(jbd2_complete_transaction);
 /* UFS */
 int jbd2_complete_cpsetup_transaction(journal_t *journal, tid_t tid)
 {
-  int need_to_wait = 1;  
-  int ret = 0;
-  
-  ret = jbd2_flush_transaction(journal, tid);
-  if (!ret) {
-    read_lock(&journal->j_state_lock);
-    if (!tid_geq(journal->j_commit_sequence, tid))
-      printk(KERN_ERR "UFS: JBD2: %s: error commit does not processed\n", __func__);
-    if (tid_geq(journal->j_cpsetup_sequence, tid))
-      need_to_wait = 0;
-    else
-      wake_up(&journal->j_wait_cpsetup);
-    read_unlock(&journal->j_state_lock);
-  }
-  if (!need_to_wait)
-    return 0;
-    // wait_cpsetup:
-  return jbd2_log_wait_cpsetup(journal, tid);
+	int need_to_wait = 1;  
+	int ret = 0;
+
+	ret = jbd2_flush_transaction(journal, tid);
+	if (!ret) {
+		read_lock(&journal->j_state_lock);
+		if (!tid_geq(journal->j_commit_sequence, tid))
+			printk(KERN_ERR "UFS: JBD2: %s: error commit does not processed\n", __func__);
+		if (tid_geq(journal->j_cpsetup_sequence, tid))
+			need_to_wait = 0;
+		else
+			wake_up(&journal->j_wait_cpsetup);
+		read_unlock(&journal->j_state_lock);
+	}
+	if (!need_to_wait)
+		return 0;
+	return jbd2_log_wait_cpsetup(journal, tid);
 }
 EXPORT_SYMBOL(jbd2_complete_cpsetup_transaction);
 
+/* UFS */
 int jbd2_flush_transaction(journal_t *journal, tid_t tid)
 {
-	int	need_to_wait = 1;
+	int need_to_wait = 1;
 
 	read_lock(&journal->j_state_lock);
 	if (journal->j_running_transaction &&
@@ -1028,13 +959,7 @@ int jbd2_flush_transaction(journal_t *journal, tid_t tid)
 		}
 	} else if (!(journal->j_committing_transaction &&
 		    journal->j_committing_transaction->t_tid == tid))
-                   /*(!tid_gt(tid, journal->j_commit_sequence)) */	  
-	  {
-	    //spin_lock(&journal->j_cplist_lock);
-	    //if (!journal->j_cpsetup_transactions)
 		need_to_wait = 0;
-		//spin_unlock(&journal->j_cplist_lock);
-	  }
 	read_unlock(&journal->j_state_lock);
 	if (!need_to_wait)
 		return 0;
@@ -1189,6 +1114,7 @@ void __jbd2_update_log_tail(journal_t *journal, tid_t tid, unsigned long block)
 	 * space and if we lose sb update during power failure we'd replay
 	 * old transaction with possibly newly overwritten data.
 	 */
+	/* UFS */
 	jbd2_journal_update_sb_log_tail(journal, tid, block, WRITE_BARRIER/*WRITE_FUA*/);
 	write_lock(&journal->j_state_lock);
 	freed = block - journal->j_tail;
@@ -1635,15 +1561,15 @@ static int journal_reset(journal_t *journal)
 	ret = jbd2_journal_start_thread(journal);
 	/* UFS */
 	if (!ret) {
-	  jbd2_journal_start_cpthread(journal);
-	  printk(KERN_INFO "kbd2_journal_start_cpthread complete\n");
+		jbd2_journal_start_cpthread(journal);
+		printk(KERN_INFO "kbd2_journal_start_cpthread complete\n");
 	}
 	return ret;
 
 }
 
 /* UFS */
-static void jbd2_write_superblock(journal_t *journal, long long write_op)
+static void jbd2_write_superblock(journal_t *journal, /*int write_op*/long long write_op)
 {
 	struct buffer_head *bh = journal->j_sb_buffer;
 	journal_superblock_t *sb = journal->j_superblock;
@@ -1657,11 +1583,11 @@ static void jbd2_write_superblock(journal_t *journal, long long write_op)
 	/* UFS */
 	write_op |= REQ_ORDERED;
 	if (write_op & REQ_FUA) {
-	  write_op &= ~REQ_FUA;
-	  write_op |= (REQ_ORDERED | REQ_BARRIER);
+		write_op &= ~REQ_FUA;
+		write_op |= (REQ_ORDERED | REQ_BARRIER);
 	}
 	if (write_op & REQ_FLUSH) {
-	  write_op &= ~REQ_FLUSH;	  
+		write_op &= ~REQ_FLUSH;	  
 	}
 
 	lock_buffer(bh);
@@ -1683,12 +1609,14 @@ static void jbd2_write_superblock(journal_t *journal, long long write_op)
 	jbd2_superblock_csum_set(journal, sb);
 	get_bh(bh);
 	bh->b_end_io = end_buffer_write_sync;
-	ret = submit_bh64(write_op, bh);
 	/* UFS */
+	//ret = submit_bh(write_op, bh);
+	ret = submit_bh64(write_op, bh);
 	
+	/* UFS */
 	if (write_op & REQ_ORDERED) {
-	  wait_on_buffer_dispatch(bh);	  
-	  return;
+		wait_on_buffer_dispatch(bh);	  
+		return;
 	}
        
 	wait_on_buffer(bh);
@@ -1716,7 +1644,7 @@ static void jbd2_write_superblock(journal_t *journal, long long write_op)
  */
 /* UFS */
 void jbd2_journal_update_sb_log_tail(journal_t *journal, tid_t tail_tid,
-				     unsigned long tail_block, long long write_op)
+				     unsigned long tail_block, /*int write_op*/long long write_op)
 {
 	journal_superblock_t *sb = journal->j_superblock;
 
