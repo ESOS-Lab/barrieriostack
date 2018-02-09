@@ -9,4 +9,4 @@ We overhaul three of moduless in linux IO stack: the filesystem, the IO schedule
 
 Publication
 -----
-* Youjip Won, Jaemin Jung, Gyeongyeol Choi, Joontaek Oh, Seongbae Son, Jooyoung Hwang, Sangyeun Cho “Barrier Enabled IO Stack for Flash Storage”, accepted in USENIX Conference on File and Storage Technologies (FAST), Oakland, CA, USA, Feb. 12-15, 2018
+* Youjip Won, Jaemin Jung, Gyeongyeol Choi, Joontaek Oh, Seongbae Son, Jooyoung Hwang, Sangyeun Cho “Barrier Enabled IO Stack for Flash Storage”, USENIX FAST 2018
