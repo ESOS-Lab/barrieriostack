@@ -1,0 +1,58 @@
+use performance_schema;
+set @start_read_only= @@global.read_only;
+set @orig_sql_mode= @@sql_mode;
+set sql_mode= (select replace(@@sql_mode,'NO_AUTO_CREATE_USER',''));
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+grant SELECT, UPDATE on performance_schema.* to pfsuser@localhost;
+Warnings:
+Warning	1287	Using GRANT for creating new user is deprecated and will be removed in future release. Create new user with CREATE USER statement.
+set sql_mode= @orig_sql_mode;
+Warnings:
+Warning	3090	Changing sql mode 'NO_AUTO_CREATE_USER' is deprecated. It will be removed in a future release.
+flush privileges;
+connect (con1, localhost, pfsuser, , test);
+connection default;
+set global read_only=0;
+connection con1;
+select @@global.read_only;
+@@global.read_only
+0
+show grants;
+Grants for pfsuser@localhost
+GRANT USAGE ON *.* TO 'pfsuser'@'localhost'
+GRANT SELECT, UPDATE ON `performance_schema`.* TO 'pfsuser'@'localhost'
+select * from performance_schema.setup_instruments;
+update performance_schema.setup_instruments set enabled='NO';
+update performance_schema.setup_instruments set enabled='YES';
+connection default;
+set global read_only=1;
+connection con1;
+select @@global.read_only;
+@@global.read_only
+1
+show grants;
+Grants for pfsuser@localhost
+GRANT USAGE ON *.* TO 'pfsuser'@'localhost'
+GRANT SELECT, UPDATE ON `performance_schema`.* TO 'pfsuser'@'localhost'
+select * from performance_schema.setup_instruments;
+update performance_schema.setup_instruments set enabled='NO';
+update performance_schema.setup_instruments set enabled='YES';
+connection default;
+grant super on *.* to pfsuser@localhost;
+flush privileges;
+connect (con1, localhost, pfsuser, , test);
+select @@global.read_only;
+@@global.read_only
+1
+show grants;
+Grants for pfsuser@localhost
+GRANT SUPER ON *.* TO 'pfsuser'@'localhost'
+GRANT SELECT, UPDATE ON `performance_schema`.* TO 'pfsuser'@'localhost'
+select * from performance_schema.setup_instruments;
+update performance_schema.setup_instruments set enabled='NO';
+update performance_schema.setup_instruments set enabled='YES';
+connection default;
+set global read_only= @start_read_only;
+drop user pfsuser@localhost;
+flush privileges;

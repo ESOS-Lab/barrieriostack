@@ -1,0 +1,129 @@
+#
+# Audience earSmart driver configuration
+#
+menu "Audience earSmart codecs"
+
+config SND_SOC_ES705
+	tristate "earSmart eS705"
+	default n
+	---help---
+	Valid configuration:
+		SLIMBus
+		SLIMBus + UART
+		SLIMBus + SPI
+		I2C + I2S
+		SPI + I2S
+		UART + I2S
+
+config SND_SOC_ES704
+	tristate "earSmart eS704"
+	default n
+	---help---
+	Valid configuration:
+		SLIMBus
+		SLIMBus + UART
+		SLIMBus + SPI
+		I2C + I2S
+		SPI + I2S
+		UART + I2S
+
+config SND_SOC_ES804
+	tristate "earSmart eS804"
+	default n
+	---help---
+	Valid configuration:
+		SLIMBus
+		SLIMBus + UART
+		SLIMBus + SPI
+		I2C + I2S
+		SPI + I2S
+		UART + I2S
+
+config SND_SOC_ES_I2C
+	tristate "I2C based audio processor"
+	default n
+	---help---
+	This enabled I2C as control interface. For data
+	interface I2S will be select as
+	default audio data interface. SLIMBus as a data interface
+	is not supported in combination with I2C as control
+	interface
+
+config SND_SOC_ES_SLIM
+	tristate
+	default y if SLIMBUS=y && SND_SOC_ES_I2C=n
+	---help---
+ 	This enables SLIMBus as control interface
+	as well as data interface to communicate
+	with firmware. Using SLIMBus only as a control
+	interface is not supported.
+
+config SND_SOC_ESXXX_UART_FW_DOWNLOAD
+	tristate "BOSKO and VS firmware download over UART"
+	default n
+	---help---
+	Enable BOSKO and VS a firmware download over UART and
+	command will remain as SLIMBus.
+	This is used for faster download of Sfirmware over UART
+	on higher baudrates.
+
+config SND_SOC_ESXXX_UART_WAKEUP
+	tristate "earSmart wakeup over UART"
+	default n
+	---help---
+	Enabling this feature uses UART TX of host to
+	wakeup earSmart.
+	instead of wakeup gpio.
+	Default wakeup interface is GPIO
+
+config SND_SOC_3MIC_SUPPORT
+	tristate "3Mics for NS"
+	default n
+	---help---
+	Samsung 3Mic for NS
+	Primary, Secondary, Tertiary Mic
+	Endpoints : 131, 132, 133 and CSout is 139
+	configuration : TBB/BTB
+
+config SND_SOC_VEQ_SUPPORT
+	tristate "Voice Equalizer"
+	default n
+	---help---
+	Voice Equalizer
+	Max gain, Noise estiamte adj, coefficient filter
+	It depends on volume level.
+	Please contact Audience HW AEs.
+
+
+config SND_SOC_ESXXX_SEAMLESS_VOICE_WAKEUP
+	tristate "Seamless voice wakeup"
+	default n
+	---help---
+	Seamless voice wakeup
+	PDM, 3seconds buffers, 16K, 16bit, No ASR-A
+	Stage0/Stage1, oem keyword and user defined keyword
+	Streaming data will be use the UART(CDEV)
+
+config SND_SOC_ESXXX_RESTORE_STD_FW
+	tristate "Restore standard firmware"
+	default n
+	---help---
+	Restore standard fw if earSmart chip did not respond.
+	sometimes, audience chip did not respond.
+	Toggle the RESET_ pin
+	Please use the UART interface(3Mbps)
+
+config SND_SOC_ESXXX_VEQ_FILTER
+	tristate "Enable VEQ FILTER"
+	default n
+	---help---
+	Enable VEQ Filter.
+	As a default VEQ Filter is turned off.
+
+config SND_SOC_ESXXX_VEQ_EXTENDEDVOLUME
+	tristate "Extend VEQ Volume range to eight steps"
+	default n
+	---help---
+	Change Max Volume Index to Eight
+	Otherwise default is Six Step
+endmenu

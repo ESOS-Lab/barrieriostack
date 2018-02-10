@@ -1,0 +1,127 @@
+comment "Samsung Mobile Modem Driver (SVNET2) V1 for Memory-type Interface"
+menuconfig SEC_MODEM_V1
+	bool "Samsung Mobile Modem Driver (SVNET2) V1 for Memory-type Interface"
+	default n
+	---help---
+	  Samsung Modem Interface Driver
+
+config BOOT_DEVICE_SPI
+	bool "boot device: SPI"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_DEVICE_MEMORY
+	bool "Memory-type (i.e. shared memory) interface medium"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_POWER_MANAGEMENT
+	bool "Power management (PM) for a link device"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_POWER_MANAGEMENT_WITH_FSM
+	bool "FSM-based Power management (PM) for a link device"
+	depends on SEC_MODEM_V1 && LINK_POWER_MANAGEMENT
+	default n
+
+config LINK_CONTROL_MSG_IOSM
+	bool "Control Message Type: IPC Over Shared Memory (IOSM)"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_CONTROL_MSG_COMMAND
+	bool "Control Message Type: Simple Command"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_DEVICE_WITH_SBD_ARCH
+	bool "Link device with the SBD architecture from MIPI-LLI"
+	depends on SEC_MODEM_V1
+	default n
+
+config LINK_DEVICE_NAPI
+	bool "Use Rx polling (NAPI)"
+	depends on SEC_MODEM_V1
+	default n
+	help
+	NAPI is a new driver API designed to reduce CPU and interrupt load
+	when the driver is receiving lots of packets.
+
+config SEC_MODEM_DEBUG
+	bool "Samsung modem interface debug"
+	default n
+
+config SEC_MODEM_DEBUGFS
+	bool "Samsung modem interface debugfs support"
+	depends on SEC_MODEM_DEBUG
+	default n
+
+config LINK_DEVICE_C2C
+	bool "Pseudo shared-memory with chip-to-chip (C2C) interface"
+	depends on SEC_MODEM_V1
+	select LINK_DEVICE_MEMORY
+	select LINK_POWER_MANAGEMENT
+	default n
+
+config LINK_DEVICE_LLI
+	bool "link device: MIPI-LLI"
+	depends on SEC_MODEM_V1
+	select MIPI_LLI
+	select LINK_DEVICE_MEMORY
+	select LINK_POWER_MANAGEMENT
+	select LINK_DEVICE_WITH_SBD_ARCH
+	default n
+
+config LINK_DEVICE_SHMEM
+	bool "Real system-level shared-memory on a system bus"
+	depends on SEC_MODEM_V1
+	select LINK_DEVICE_MEMORY
+	default n
+
+config LINK_DEVICE_HSIC
+	bool "link device: HSIC"
+	depends on SEC_MODEM_V1
+	default n
+
+config LTE_MODEM_XMM7260
+	bool "modem chip : IMC XMM7260"
+	depends on SEC_MODEM_V1
+	default n
+
+choice
+	prompt "SEC MODEM CONFIG"
+	depends on SEC_MODEM_V1
+	default UMTS_MODEM_SS300
+
+config UMTS_MODEM_SS222
+	bool "Samsung SS222 modem"
+	select BOOT_DEVICE_SPI
+	select LINK_DEVICE_C2C
+
+config UMTS_MODEM_SH222AP
+	bool "Samsung SH222AP (one-chip) modem"
+	depends on SEC_MODEM_V1
+	select LINK_DEVICE_SHMEM
+
+config UMTS_MODEM_SS300
+	bool "Samsung SS300 modem"
+	select BOOT_DEVICE_SPI
+	select LINK_DEVICE_LLI
+	select LINK_POWER_MANAGEMENT_WITH_FSM
+	select LINK_CONTROL_MSG_COMMAND
+
+config UMTS_MODEM_SS333
+	bool "Samsung SS333 modem"
+	select BOOT_DEVICE_SPI
+	select LINK_DEVICE_LLI
+	select LINK_POWER_MANAGEMENT_WITH_FSM
+	select LINK_CONTROL_MSG_COMMAND
+
+config SEC_MODEM_XMM7260_CAT6
+	bool "IMC XMM7260 modem"
+	select LTE_MODEM_XMM7260
+	select LINK_DEVICE_HSIC
+	select LINK_DEVICE_LLI
+	select LINK_CONTROL_MSG_IOSM
+endchoice

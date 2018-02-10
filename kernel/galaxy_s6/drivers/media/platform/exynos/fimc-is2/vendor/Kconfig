@@ -1,0 +1,61 @@
+config CAMERA_EEPROM_SUPPORT_REAR
+        bool "Enable eeprom for rear cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for rear cam.
+config CAMERA_EEPROM_SUPPORT_FRONT
+        bool "Enable eeprom for front cam"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable eeprom for front cam.
+config COMPANION_USE
+        bool "Use companion"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use companion.
+ config COMPANION_C1_USE
+        bool "Use companion C1"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C1.
+ config COMPANION_C2_USE
+        bool "Use companion C2"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion C2.
+config COMPANION_DCDC_USE
+        bool "Use companion DCDC regulator"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion DCDC regulator.
+config COMPANION_STANDBY_USE
+        bool "Use companion standby"
+        depends on COMPANION_USE
+        default n
+        help
+          Use companion standby.
+config OIS_USE
+        bool "Use ois"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Use ois.
+config OIS_FW_UPDATE_THREAD_USE
+        bool "Enable ois fw update thread"
+        depends on OIS_USE
+        default n
+        help
+          Enable ois fw update thread.
+config AF_HOST_CONTROL
+        bool "Enable host af control"
+        depends on VIDEO_EXYNOS_FIMC_IS
+        default n
+        help
+          Enable host af control.
+

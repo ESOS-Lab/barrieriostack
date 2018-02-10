@@ -1,0 +1,129 @@
+#
+# Sensor  drivers configuration
+#
+menuconfig SENSORS_CORE
+	bool "Sensor devices"
+	help
+	  Say Y here, and a list of sensors drivers will be displayed.
+	  Everything that didn't fit into the other categories is here. This option
+	  doesn't affect the kernel.
+
+	  If unsure, say Y.
+
+config SENSORS_BMI055
+	tristate "BMI055 Combo Sensor Driver"
+	depends on I2C
+	default n
+	help
+	  If you say yes here you get support for Bosch-Sensortec's
+	  BMA254 Acceleration & Gyroscope Sensor.
+
+config SENSORS_AK8963C
+	tristate "AK8963C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK8963.
+
+config SENSORS_AK09911C
+	tristate "AK09911C compass support"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for Asahi Kasei's
+	  orientation sensor AK09911C.
+
+config SENSORS_CM3323
+	depends on I2C
+	tristate "CM3323 driver"
+	default n
+	help
+	  Say Y here if you use cm3323.
+	  This option enables RGB sensors using
+	  Capella cm3323 device driver.
+
+	  Say N here if you do not use cm3323.
+
+config SENSORS_CM36653
+	depends on I2C
+	tristate "CM36653 driver"
+	default n
+	help
+	  Say Y here if you use cm36653.
+	  This option enables RGB sensors using
+	  Capella cm36653 device driver.
+
+	  Say N here if you do not use cm36653.
+
+config SENSORS_TMD27723
+	depends on I2C
+	tristate "TMD27723 driver"
+	default n
+	help
+	   This option enables proximity & light sensors using TMD27723 driver.
+
+config SENSORS_TMD3782
+	depends on I2C
+	tristate "TMD3782 driver"
+	default n
+	help
+	   This option enables proximity & light sensors using TMD3782 driver.
+
+config SENSORS_ESD_DEFENCE
+	depends on I2C
+	tristate "ESD Defence"
+	default n
+	help
+	  Say Y here if you use ESD defence.
+	  This option enables ESD defence code.
+
+	  Say N here if you do not use ESD defence.
+
+config SENSORS_SX9500
+	depends on I2C
+	tristate "SX9500 driver"
+	default n
+	help
+	  Say Y here if you use sx9500.
+	  This option enables grip sensors using
+	  SemTech sx9500 device driver.
+
+	  Say N here if you do not use sx9500.
+
+config SENSORS_SX9500_INIT_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for init touch"
+	depends on SENSORS_SX9500
+	default "3000"
+	help
+	  This value is the standard of init touch using
+	  SemTech sx9500 device driver.
+
+config SENSORS_SX9500_NORMAL_TOUCH_THRESHOLD
+	int "SX9500 Grip sensor threshold for normal touch"
+	depends on SENSORS_SX9500
+	default "17"
+	help
+	  This value is the standard of normal touch using
+	  SemTech sx9500 device driver.
+
+config SENSORS_GP2A30
+	depends on I2C
+	tristate "GP2AP030A00F driver"
+	default n
+	help
+	  Say Y here if you use GP2AP030A00F.
+	  This option enables lproximity & light sensors using
+	  SHARP GP2AP030A00F device driver.
+
+	  Say N here if you do not use GP2AP030A00F.
+
+config SENSORS_MAX86900
+	tristate "MAXIM MAX86900 HRM Sensor"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for the MAX86900
+	  HRM sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called max86900.

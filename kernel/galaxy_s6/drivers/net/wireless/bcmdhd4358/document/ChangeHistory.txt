@@ -1,0 +1,124 @@
+BCM4358 DHD 1.47.20 for Android Lollipop Zero Project
+Notes: 
+- Must sync up DHD and FW for additional message to eliminate spurious D0 interrupt.
+. additional message to eliminate spurious D0 interrupt is enabled from DHD 1.47.20 and FW 7.112.20.5/7.112.20.2(IBSS) 
+
+
+2015.2.16 - DHD 1.47.20
+Others
+   - CSP 878647 Applied Deferred initcall for UNIVERSAL7420 platform
+   - CSP:887908 Introduce additional message to eliminate spurious D0 interrupt
+   - Added WISOL vid info for 4358A3 chip
+
+2015.2.4 - DHD 1.47.19
+Kernel Panic
+   - CSP:872839 Added wl_event_handler thread on/off control 
+   - CSP:873023 Added Synchronized wdev list when Wi-Fi turn off
+   - CSP:882298 Added exception handling routines when DMA map/unmap is failed
+
+Others
+   - CSP:867192 Removed Needless log during WiFi On
+   - CSP:871282,873022 Fixed coverity defects
+   - CSP:873493 Fixed missing Interworking IE in probe request
+   - CSP:876146 Added PKTID AUDIT routine to debug memory corruption
+   - CSP:876146, 882298 Enhanced static IOCTL response buffer implementation
+   - CSP:879106 Added Notifier for inetaddr & inet6addr
+   - CSP:879882 Skip the data processing after HANG event was triggered
+   - CSP:881804 Removed unnecessary delay code while WIFI turning off
+   - CSP:882004 Fixed disconnection issue because of duplicated roaming events
+   - Added setting of QoS Mapping for WL11u feature
+   - Enabled TCP Ack Suppress for Exynos platforms only
+   - Fixed deadlock by mutex unlock missing code
+   - Fixed SoftAP enable issue for Wireless Extension mode
+   - Print dongle dump memory address on ARM64bit system
+
+
+2015.1.20 - DHD 1.47.15
+Kernel Panic
+   - CSP:876083 Blocked wrong PCIe address mapping when link down
+   - CSP:876146 Enhanced PKT ID lock routine
+
+Others
+   - CSP:867192 Modified debug log for module info
+   - CSP:871282,873022 Fixed coverity defects
+   - Fixed Supplicant initialize error when it killed forcibly
+
+2015.1.13 - DHD 1.47.14
+Kernel Panic
+   - CSP:874158, 874680 Fixed Kernel Panic on IOCTL RX buffer handling
+   - CSP:874397 Fixed kernel panic on canceling of remain-on-channel
+   - CSP:875640, 876488 Changed spin lock for TCP Ack suppress
+   - CSP:876501 Validity check to avoid Kernel panic
+
+Others
+   - CSP:869498, 875216 Fixed suspend fail issue due to wake lock of TCP ACK suppression
+   - CSP:872080 Supported multiple revision for 4358A3 chip
+   - CSP:875216 Blocked the unnecessary IOCTL events when WiFi is off
+   - Country code updated for 11ac support and Applied new FCC regulation
+   - Moved starting point of PCIe bus enumeration for Exynos7420 platform
+
+
+2015.1.6 - DHD 1.47.12
+
+Kernel Panic
+   - CSP:866923 Revert skb->data processing codes to prevent NOC error Kernel panic
+   - CSP:874019 Fixed kernel panic while sending action frame on SoftAP.
+   - CSP:874900 Fixed LIVELOCK error problem
+
+Others
+   - CSP:850602, 870753 Reverted send hang event when Flow ring struck occurred
+   - CSP:861362 Enhanced dongle dump functionality
+   - CSP:867192 Cleaned up unnecessary log messages
+   - CSP:867192 Revised Chip module type log messages
+   - CSP:868951 Sync deferred workqueue up for built-in DHD driver
+   - CSP:869498 Added DHD TCP ACK Suppression feature
+   - CSP:870769 Enhanced CCKM debug message
+   - Added channel parameter on Exynos PCIe power control function
+   - Added VID info of 4358A3 Module vendor
+   - Changed ARGOS IRQ Number for Universal 7420 platform
+   - Disabled PROP_TXSTATUS and PROP_TXSTATUS_VSDB for PCIe target
+   - Enhanced GSCAN related code
+   - Fixed Debug log for P2P Action frame
+   - Fixed defects report issues from coverity tool
+   - Fixed DHD livelock D2H sequence mismatch issue during bidirectional tput test
+   - Fixed TCP iperf traffic hang up issue while repeating TDLS connection
+   - Separated dhd_custom_memprealloc.c file for memory prealloc routine
+
+
+
+2014. 12.18 - DHD 1.47.7
+
+Kernel Panic
+   - Fixed kernel panic while WiFi On/Off testing
+
+Others
+   - CSP:841739 Japan ccode revision will be fixed by nvram's value
+   - CSP:846982 Added Cancel of remain-on-channel
+   - CSP:860537 Removed unused feature in dhd_sec_feature.h file
+   - Cleaned up wake lock code to fix suspend issue
+   - Fixed scan timer control routine during WiFi On/Off
+   - Fixed unauthorized state issue for P2P
+   - Fixed wrong byte order conversion in dhd_rtt_event_handler() function
+   - Removed unnecessary debug message on dhd_tcpdata_info_get() function
+
+
+2014. 11. 28 - DHD 1.47.6
+
+- Initial PCIe DHD release for Android Lollipop Zero Project
+
+Added Android Lollipop Features
+   - Added GSCAN feature 
+   - Added Link Statistics feature 
+   - Added RTT feature
+   - Added 64Bit support code
+
+Others
+   - CSP:806869 Disabled single core beacon rx and single core scan to avoid RSSI fluctuation
+   - CSP:855394 Kconfig enhancement
+   - CSP:858938 Sync up get_country_code() parameter as latest kernel
+   - CSP:860566 Create board file(dhd_custom_msm.c) for Q platform
+   - CSP:861451 Fixed prevent issue - Potential buffer overflow
+   - CSP:862058 Supported multiple module CIS
+   - Enabled Roaming Offload
+   - Fixed Scan timeout debug feature did not unloaded issue
+   - Oxygen - Enabled PM for IBSS mode at work handler
