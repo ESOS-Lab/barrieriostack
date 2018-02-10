@@ -1,4 +1,0 @@
-#
-config MST_LDO
-	def_bool y
-	depends on !SEC_FACTORY

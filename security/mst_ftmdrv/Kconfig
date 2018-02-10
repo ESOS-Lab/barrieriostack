@@ -1,4 +1,0 @@
-#
-config MST_FTM
-	def_bool y
-	depends on SEC_FACTORY
