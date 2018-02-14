@@ -336,17 +336,17 @@ static int io_submit_init(struct ext4_io_submit *io,
 	
 	switch (wbc->sync_mode) {
 	case WB_SYNC_ALL:
-	  io->io_op = WRITE_SYNC;
-	  break;
+		io->io_op = WRITE_SYNC;
+		break;
 	case WB_SYNC_NONE:
-	  io->io_op = WRITE;
-	  break;
+		io->io_op = WRITE;
+		break;
 	case WB_ORDERED_ALL:
-	  io->io_op = WRITE_ORDERED;
-	  break;
+		io->io_op = WRITE_ORDERED;
+		break;
 	case WB_BARRIER_ALL:
-	  io->io_op = WRITE_ORDERED;
-	  break;
+		io->io_op = WRITE_ORDERED;
+		break;
 	}
 	
 	io->io_next_block = bh->b_blocknr;

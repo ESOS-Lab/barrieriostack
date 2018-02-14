@@ -150,10 +150,10 @@ void __jbd2_log_wait_for_space(journal_t *journal)
 				tid = journal->j_committing_transaction->t_tid;
 			/* UFS */
 			else {
-			  spin_lock(&journal->j_cplist_lock);
-			  if (journal->j_cpsetup_transactions)
-			    tid = journal->j_cpsetup_transactions->t_tid;
-			  spin_unlock(&journal->j_cplist_lock);
+				spin_lock(&journal->j_cplist_lock);
+				if (journal->j_cpsetup_transactions)
+					tid = journal->j_cpsetup_transactions->t_tid;
+				spin_unlock(&journal->j_cplist_lock);
 			}
 
 			spin_unlock(&journal->j_list_lock);

@@ -352,7 +352,6 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 {
 	sector_t boundary;
 	struct list_head *entry;
-	//int stop_flags;
 	long long stop_flags; /* UFS modification to support REQ_BARRIER and REQ_ORDERED */
 	if (q->last_merge == rq)
 		q->last_merge = NULL;
@@ -363,72 +362,51 @@ void elv_dispatch_sort(struct request_queue *q, struct request *rq)
 
 	boundary = q->end_sector;
 	stop_flags = REQ_SOFTBARRIER | REQ_STARTED;
-	/* UFS */
-	//stop_flags = REQ_SOFTBARRIER | REQ_STARTED | REQ_BARRIER;
 
-
-       
-	
 	if (rq->cmd_bflags & REQ_ORDERED) {
-	  struct bio *req_bio;
-	  req_bio = rq->bio;
-	  while (req_bio) {
-	    struct bio *bio = req_bio;
-	    /*
-	    if (!bio->bi_size) {
-	      req_bio = bio->bi_next;
-	      continue;
-	    }
-	    */
-	    if (bio->bi_epoch) {
-	      struct epoch *epoch = bio->bi_epoch;
-	      //printk(KERN_ERR "UFS2: pending: %u dispatch: %u barrier: %d\n", epoch->pending, epoch->dispatch, epoch->barrier);
-	      if (epoch->pending == 1 && epoch->barrier) {
-		//printk(KERN_ERR "UFS2: %s: REQ: BARRIER\n", __func__);
-		rq->cmd_bflags |= REQ_BARRIER;			  
-	      }
-	      epoch->pending--;
-	      epoch->dispatch++;
-	      
-	    }
-	    req_bio = bio->bi_next;
-	  }
+		struct bio *req_bio;
+		req_bio = rq->bio;
+		while (req_bio) {
+			struct bio *bio = req_bio;
+			if (bio->bi_epoch) {
+				struct epoch *epoch = bio->bi_epoch;
+				if (epoch->pending == 1 && epoch->barrier) {
+					rq->cmd_bflags |= REQ_BARRIER;			  
+				}
+				epoch->pending--;
+				epoch->dispatch++;
+
+			}
+			req_bio = bio->bi_next;
+		}
 	}
-	
+
 #ifdef EPOCH_V1
 	if (rq->cmd_bflags & REQ_ORDERED) {
 		struct epoch *epoch;
 		struct epoch_link *link = 0;
 
 		if (!rq->epoch_link) {
-		  printk(KERN_ERR "UFS: no epoch link\n");
-		  goto insert;
-		  //	BUG();
+			printk(KERN_ERR "UFS: no epoch link\n");
+			goto insert;
 		}
 		link = rq->epoch_link;
 		while (link) {
 			epoch = link->el_epoch;
 			if (!epoch->pending) {
-			  printk(KERN_ERR "UFS: No pending epoch\n");
-			  //break;
-			  //BUG();
+				printk(KERN_ERR "UFS: No pending epoch\n");
 			}
-		
+
 			printk(KERN_ERR "UFS: pending: %u dispatch: %u barrier: %d\n", epoch->pending, epoch->dispatch, epoch->barrier);
 			if (epoch->pending == 1 /*&& epoch->barrier*/) {
-			  printk(KERN_ERR "UFS: %s: REQ: BARRIER\n", __func__);
-			  rq->cmd_bflags |= REQ_BARRIER;
-			  
+				printk(KERN_ERR "UFS: %s: REQ: BARRIER\n", __func__);
+				rq->cmd_bflags |= REQ_BARRIER;
+
 			}
 			epoch->pending--;
 			epoch->dispatch++;
 			link = link->el_next;
-			/* ? */
-			/*
-			if (rq->epoch_link == rq->epoch_link_tail)
-				rq->epoch_link_tail = link;
-			*/
-			
+
 			rq->epoch_link = link;
 		}
 		rq->epoch_link_tail = link;
@@ -439,7 +417,7 @@ insert:
 		struct request *pos = list_entry_rq(entry);
 
 		if ((rq->cmd_flags & REQ_DISCARD) !=
-		    (pos->cmd_flags & REQ_DISCARD))
+				(pos->cmd_flags & REQ_DISCARD))
 			break;
 		if (rq_data_dir(rq) != rq_data_dir(pos))
 			break;
@@ -454,9 +432,6 @@ insert:
 		}
 		if (blk_rq_pos(rq) >= blk_rq_pos(pos))
 			break;
-		/* UFS */
-		//if (rq->cmd_bflags & REQ_BARRIER)
-		//	break;
 	}
 
 	list_add(&rq->queuelist, entry);
@@ -690,68 +665,61 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 	switch (where) {
 	case ELEVATOR_INSERT_REQUEUE:
 #ifdef EPOCH_V2
-	        if (rq->cmd_bflags & REQ_ORDERED) {
-		  struct bio *req_bio;
-		  struct epoch *epoch;
-		  struct epoch_link *link = 0;
-		  if (rq->cmd_bflags & REQ_BARRIER)
-		    printk(KERN_ERR "UFS: REQUEUE BARRIER\n");
-		  else
-		    printk(KERN_ERR "UFS: REQUEUE\n");
+		if (rq->cmd_bflags & REQ_ORDERED) {
+			struct bio *req_bio;
+			struct epoch *epoch;
+			struct epoch_link *link = 0;
+			if (rq->cmd_bflags & REQ_BARRIER)
+				printk(KERN_ERR "UFS: REQUEUE BARRIER\n");
+			else
+				printk(KERN_ERR "UFS: REQUEUE\n");
 
-		  req_bio = rq->bio;
-		  while (req_bio) {
-		    struct bio *bio = req_bio;
-		    if (!bio->bi_size) {
-		      req_bio = bio->bi_next;
-		      continue;
-		    }
-	   	
-		    if (bio->bi_epoch) {
-		      struct epoch *epoch = bio->bi_epoch;		     
-		      if (epoch->pending == 0 && epoch->barrier && !(rq->cmd_bflags & REQ_BARRIER)) {
-			printk(KERN_ERR "UFS2: %s: REQ: BARRIER Failed\n", __func__);
-			rq->cmd_bflags |= REQ_BARRIER;
-			epoch->pending++;
-			epoch->dispatch--;
-			q->elevator->type->ops.elevator_add_req_fn(q, rq);
-			return;
-		      } 
-		      //epoch->pending++;
-		      //epoch->dispatch--;
-	      
-		    }
-		    req_bio = bio->bi_next;
-		  }
+			req_bio = rq->bio;
+			while (req_bio) {
+				struct bio *bio = req_bio;
+				if (!bio->bi_size) {
+					req_bio = bio->bi_next;
+					continue;
+				}
+
+				if (bio->bi_epoch) {
+					struct epoch *epoch = bio->bi_epoch;		     
+					if (epoch->pending == 0 && epoch->barrier && !(rq->cmd_bflags & REQ_BARRIER)) {
+						printk(KERN_ERR "UFS2: %s: REQ: BARRIER Failed\n", __func__);
+						rq->cmd_bflags |= REQ_BARRIER;
+						epoch->pending++;
+						epoch->dispatch--;
+						q->elevator->type->ops.elevator_add_req_fn(q, rq);
+						return;
+					} 
+				}
+				req_bio = bio->bi_next;
+			}
 		}
 #endif
 
 #ifdef EPOCH_V1
-	        /* UFS */
-	  
-	  
-	    	if (rq->cmd_bflags & REQ_ORDERED) {
-		  struct epoch *epoch;
-		  struct epoch_link *link = 0;
-		  if (rq->cmd_bflags & REQ_BARRIER)
-		    printk(KERN_ERR "UFS: REQUEUE BARRIER\n");
-		  else
-		    printk(KERN_ERR "UFS: REQUEUE\n");
+		/* UFS */
+		if (rq->cmd_bflags & REQ_ORDERED) {
+			struct epoch *epoch;
+			struct epoch_link *link = 0;
+			if (rq->cmd_bflags & REQ_BARRIER)
+				printk(KERN_ERR "UFS: REQUEUE BARRIER\n");
+			else
+				printk(KERN_ERR "UFS: REQUEUE\n");
 
-		  if (rq->epoch_link) {
-		    link = rq->epoch_link; 
-		  }
-		 
-		  while (link) {
-		    epoch = link->el_epoch;
-		    if (epoch->pending == 0 && epoch->dispatch != epoch->complete && !(rq->cmd_bflags & REQ_BARRIER))
-		      printk(KERN_ERR "UFS: BARRIER fail due to REQUEUE\n");
-		    //epoch->pending++;
-		    //epoch->dispatch--;
+			if (rq->epoch_link) {
+				link = rq->epoch_link; 
+			}
 
-		    link = link->el_next;
-		    
-		  }
+			while (link) {
+				epoch = link->el_epoch;
+				if (epoch->pending == 0 && epoch->dispatch != epoch->complete && !(rq->cmd_bflags & REQ_BARRIER))
+					printk(KERN_ERR "UFS: BARRIER fail due to REQUEUE\n");
+
+				link = link->el_next;
+
+			}
 		}
 #endif
 	  
@@ -781,8 +749,6 @@ void __elv_add_request(struct request_queue *q, struct request *rq, int where)
 	case ELEVATOR_INSERT_SORT_MERGE:
 #ifdef EPOCH_V1
 		/* UFS */
-	        
-		
 		if ((rq->cmd_bflags & REQ_ORDERED) && !rq->epoch_link) {
 		        if (!current->epoch || current->epoch->q != q)
 		                blk_start_new_epoch(q);

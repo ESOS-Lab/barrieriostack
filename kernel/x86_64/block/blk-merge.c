@@ -395,9 +395,9 @@ static void blk_account_io_merge(struct request *req)
 		part_stat_unlock();
 	}
 }
+
 /* UFS: request merge */
-void request_epoch_merge(struct request_queue *q, struct request *req,
-			struct request *next)
+void request_epoch_merge(struct request_queue *q, struct request *req, struct request *next)
 {
 	if (next->cmd_bflags & REQ_ORDERED) {
 	        req->cmd_bflags |= REQ_ORDERED;
@@ -556,10 +556,6 @@ bool blk_rq_merge_ok(struct request *rq, struct bio *bio)
 	if (rq->cmd_flags & REQ_WRITE_SAME &&
 	    !blk_write_same_mergeable(rq->bio, bio))
 		return false;
-
-	/* UFS */
-	//if ((rq->cmd_bflags & REQ_BARRIER) && (bio->bi_rw & REQ_BARRIER))
-	//  return false;
 
 	return true;
 }
