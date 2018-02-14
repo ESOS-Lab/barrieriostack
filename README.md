@@ -1,6 +1,6 @@
 Barrier-Enabled IO Stack for Flash Storage
 -----
-* Maintainer : Joonetaek Oh, Gyeongyeol Choi
+* Maintainer : Joonetaek Oh(na94ojt), Gyeongyeol Choi(chl4651)
 * Contributor : Jaemin Jung, Hankeun Son, Seongbae Son, Youjip Won
 
 Barrier-Enabled IO Stack is an IO Stack that uses the new command for flash storage, the write barrier command.
