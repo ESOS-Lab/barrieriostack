@@ -453,3 +453,61 @@ int blkdev_issue_flush(struct block_device *bdev, gfp_t gfp_mask,
 	return ret;
 }
 EXPORT_SYMBOL(blkdev_issue_flush);
+
+/**
+ * blkdev_issue_barrier - queue a barrier
+ * @bdev:	blockdev to issue flush for
+ * @gfp_mask:	memory allocation flags (for bio_alloc)
+ * @error_sector:	error sector
+ *
+ * Description:
+ *    Issue a barrier command to block device with dummy bio.
+ *    While blkdev_issue_flush() issue flush as set WRITE_FLUSH
+ *    flag to bio, blkdev_issue_barrier() issue barrier command
+ *    as use WRITE_BARRIER flag. Any processes including error 
+ *    handling are same with blkdev_issue_flush().
+ *    - Joontaek Oh.
+ *
+ */
+int blkdev_issue_barrier(struct block_device *bdev, gfp_t gfp_mask,
+		sector_t *error_sector)
+{
+	DECLARE_COMPLETION_ONSTACK(wait);
+	struct request_queue *q;
+	struct bio *bio;
+	int ret = 0;
+
+	if (bdev->bd_disk == NULL)
+		return -ENXIO;
+
+	q = bdev_get_queue(bdev);
+	if (!q)
+		return -ENXIO;
+
+	if (!q->make_request_fn)
+		return -ENXIO;
+
+	bio = bio_alloc(gfp_mask, 0);
+	bio->bi_end_io = bio_end_flush;
+	bio->bi_bdev = bdev;
+	bio->bi_private = &wait;
+
+	bio_get(bio);
+	submit_bio(WRITE_BARRIER, bio);
+	wait_for_completion_io(&wait);
+
+	/*
+	 * The driver must store the error location in ->bi_sector, if
+	 * it supports it. For non-stacked drivers, this should be
+	 * copied from blk_rq_pos(rq).
+	 */
+	if (error_sector)
+		*error_sector = bio->bi_sector;
+
+	if (!bio_flagged(bio, BIO_UPTODATE))
+		ret = -EIO;
+
+	bio_put(bio);
+	return ret;
+}
+EXPORT_SYMBOL(blkdev_issue_flush);
