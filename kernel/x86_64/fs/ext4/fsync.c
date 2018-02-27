@@ -213,14 +213,14 @@ int ext4_fbarrier_file(struct file *file, loff_t start, loff_t end, int datasync
 	trace_ext4_sync_file_enter(file, datasync);
 
 	if (datasync) {
-	        current->barrier_fail = 0;
-	        ret = filemap_ordered_write_range(inode->i_mapping, start, end);
+		current->barrier_fail = 0;
+		ret = filemap_ordered_write_range(inode->i_mapping, start, end);
 		if (current->barrier_fail)
-		  needs_barrier = true;
+			needs_barrier = true;
 		ret = filemap_fdatadispatch_range(inode->i_mapping, start, end);
 	}
 	else
-	        ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
+		ret = filemap_write_and_dispatch_range(inode->i_mapping, start, end);
 
 	if (ret)
 		return ret;

@@ -476,6 +476,7 @@ int blkdev_issue_barrier(struct block_device *bdev, gfp_t gfp_mask,
 	struct request_queue *q;
 	struct bio *bio;
 	int ret = 0;
+	struct blk_plug plug;
 
 	if (bdev->bd_disk == NULL)
 		return -ENXIO;
@@ -487,6 +488,23 @@ int blkdev_issue_barrier(struct block_device *bdev, gfp_t gfp_mask,
 	if (!q->make_request_fn)
 		return -ENXIO;
 
+	/*
+	 * A complete function can be same with blkdev_issue_flush.
+	 * A complete function of blkdev_issue_flush is bio_end_flush.
+	 * The bio_end_flush just send complete signal to caller that
+	 * called blkdev_issue_barrier through the wait and just handle
+	 * errors. So, a complete function of blkdev_issue_barrier is
+	 * also bio_end_flush.
+	 *
+	 * As a unnecessary comments, I thought that the complete 
+	 * function is not needed in blkdev_issue_barrier. The role
+	 * of barrier command is just ordering between durability
+	 * of requests. So, the host not need to wait for dummy bio
+	 * with BARRIER command. However, I added it once because
+	 * it may needed because of error handling.
+	 *
+	 * -Joontaek Oh.
+	 */
 	bio = bio_alloc(gfp_mask, 0);
 	bio->bi_end_io = bio_end_flush;
 	bio->bi_bdev = bdev;
@@ -494,7 +512,6 @@ int blkdev_issue_barrier(struct block_device *bdev, gfp_t gfp_mask,
 
 	bio_get(bio);
 	submit_bio(WRITE_BARRIER, bio);
-	wait_for_completion_io(&wait);
 
 	/*
 	 * The driver must store the error location in ->bi_sector, if
@@ -510,4 +527,4 @@ int blkdev_issue_barrier(struct block_device *bdev, gfp_t gfp_mask,
 	bio_put(bio);
 	return ret;
 }
-EXPORT_SYMBOL(blkdev_issue_flush);
+EXPORT_SYMBOL(blkdev_issue_barrier);
