@@ -295,7 +295,7 @@ loop:
 
 	spin_lock(&journal->j_cplist_lock);
 	if (journal->j_cpsetup_transactions) {	  
-	  spin_unlock(&journal->j_cplist_lock);
+		spin_unlock(&journal->j_cplist_lock);
 		jbd2_journal_cpsetup_transaction(journal);
 		goto loop;
 	}
@@ -303,13 +303,18 @@ loop:
 	else if (journal->j_running_transaction) {
 		struct journal_head *jh, *next_jh;
 		transaction_t *commit_transaction = journal->j_running_transaction;
+		spin_unlock(&journal->j_cplist_lock);
+		spin_lock(&journal->j_list_lock);
 		list_for_each_entry_safe(jh, next_jh, &commit_transaction->t_jh_wait_list, b_jh_wait_list) {
 			list_del_init(&jh->b_jh_wait_list);
 		}
+		spin_unlock(&journal->j_list_lock);
 	}
-#endif
-
+	else
+		spin_unlock(&journal->j_cplist_lock);
+#else
 	spin_unlock(&journal->j_cplist_lock);
+#endif
 
 	if (freezing(current)) {
 		try_to_freeze();

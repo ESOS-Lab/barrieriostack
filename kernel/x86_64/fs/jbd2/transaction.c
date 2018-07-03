@@ -1003,10 +1003,12 @@ repeat:
 	 * reused here.
 	 */
 	jbd_lock_bh_state(bh);
+#ifndef CPSETUPWAIT
 	spin_lock(&journal->j_list_lock);
+#else
 	/* UFS */
-#ifdef CPSETUPWAIT
 	read_lock(&journal->j_state_lock);
+	spin_lock(&journal->j_list_lock);
 	if ((jh->b_transaction && jh->b_transaction != transaction && jh->b_jlist != BJ_Forget) || jh->b_next_transaction) {
 		tid_t tid = 0;
 		tid = jh->b_next_transaction ? jh->b_next_transaction->t_tid : jh->b_transaction->t_tid;
@@ -2081,14 +2083,11 @@ repeat:
 				goto zap_buffer;
 			} else {
 				/* UFS */
-				spin_lock(&journal->j_cplist_lock);
 				if (journal->j_cpsetup_transactions) {
 					may_free = __dispose_buffer(jh,
 					journal->j_cpsetup_transactions);
-					spin_unlock(&journal->j_cplist_lock);
 					goto zap_buffer;
 				}
-				spin_unlock(&journal->j_cplist_lock);
 
 				/* The orphan record's transaction has
 				 * committed.  We can cleanse this buffer */			 
@@ -2318,7 +2317,9 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 		assert_spin_locked(&jh->b_transaction->t_journal->j_list_lock);
 
 #ifdef DELAYED_COMMIT
+	//spin_lock(&journal->j_list_lock);
 	list_del_init(&jh->b_jh_wait_list);
+	//spin_unlock(&journal->j_list_lock);
 #endif
 
 	/* If the buffer is now unused, just drop it. */
@@ -2348,7 +2349,6 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 	else
 		jlist = BJ_Reserved;
 	__jbd2_journal_file_buffer(jh, jh->b_transaction, jlist);
-	J_ASSERT_JH(jh, jh->b_transaction->t_state == T_RUNNING);
 
 	if (was_dirty)
 		set_buffer_jbddirty(bh);
