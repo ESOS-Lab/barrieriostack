@@ -684,34 +684,6 @@ repeat:
 		trace_jbd2_lock_buffer_stall(bh->b_bdev->bd_dev,
 			jiffies_to_msecs(time_lock));
 
-	/* UFS */
-	if (jh->b_transaction && jh->b_transaction != transaction) {
-#ifdef DELAYED_COMMIT
-		/* insert jh into the buffer list of transaction */
-		/* list_lock*/
-		spin_lock(&journal->j_list_lock);
-		if (list_empty(&jh->b_jh_wait_list)){
-			list_add_tail(&jh->b_jh_wait_list, &transaction->t_jh_wait_list);
-			spin_unlock(&journal->j_list_lock);
-		} else if (jh->b_next_transaction != transaction) {
-			wake_up(&journal->j_wait_cpsetup);
-			spin_unlock(&journal->j_list_lock);
-			unlock_buffer(bh);
-			jbd_unlock_bh_state(bh);
-			wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
-			goto repeat;
-		}  
-		else
-			spin_unlock(&journal->j_list_lock);
-#else
-		wake_up(&journal->j_wait_cpsetup);
-		unlock_buffer(bh);
-		jbd_unlock_bh_state(bh);
-		wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
-		goto repeat;
-#endif
-	}
-
 	/* We now hold the buffer lock so it is safe to query the buffer
 	 * state.  Is the buffer dirty?
 	 *
@@ -895,6 +867,34 @@ done:
 		jh->b_frozen_triggers = jh->b_triggers;
 	}
 	jbd_unlock_bh_state(bh);
+
+	/* UFS */
+	if (jh->b_transaction && jh->b_transaction != transaction) {
+#ifdef DELAYED_COMMIT
+		/* insert jh into the buffer list of transaction */
+		/* list_lock*/
+		spin_lock(&journal->j_list_lock);
+		if (list_empty(&jh->b_jh_wait_list)){
+			list_add_tail(&jh->b_jh_wait_list, &transaction->t_jh_wait_list);
+			spin_unlock(&journal->j_list_lock);
+		} else if (jh->b_next_transaction != transaction) {
+			wake_up(&journal->j_wait_cpsetup);
+			spin_unlock(&journal->j_list_lock);
+			unlock_buffer(bh);
+			jbd_unlock_bh_state(bh);
+			wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
+			goto repeat;
+		}  
+		else
+			spin_unlock(&journal->j_list_lock);
+#else
+		wake_up(&journal->j_wait_cpsetup);
+		unlock_buffer(bh);
+		jbd_unlock_bh_state(bh);
+		wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
+		goto repeat;
+#endif
+	}
 
 	/*
 	 * If we are about to journal a buffer, then any revoke pending on it is
