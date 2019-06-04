@@ -219,7 +219,12 @@ struct nvme_rw_command {
 	__u8			flags;
 	__u16			command_id;
 	__le32			nsid;
-	__u64			rsvd2;
+	//__u64			rsvd2;		/* kms91 edit - __u32 for epoch_id, __s32 for stream_id */
+	__s32			cmd_stream_id;	/* kms91 added 19.04. 05 - stream id
+						 * It stores Process id (PID) as stream id
+						 * type is signed int (=pid_t)
+						 */
+	__u32			cmd_epoch_id;	/* kms91 added 19.03.18 - epoch id */
 	__le64			metadata;
 	__le64			prp1;
 	__le64			prp2;

@@ -328,6 +328,15 @@ static int io_submit_init(struct ext4_io_submit *io,
 	bio->bi_private = io->io_end = io_end;
 	bio->bi_end_io = ext4_end_bio;
 
+	/* 
+	 * kms91 added 19.04.05
+	 * Initialize bi_stream_id. bi_stream_id store current process id.
+	 * Type of bi_stream_id is pid_t, 
+	 * so it is not necessary to type casting.
+	 */
+	bio->bi_stream_id = current->pid;
+
+
 	io_end->offset = (page->index << PAGE_CACHE_SHIFT) + bh_offset(bh);
 
 	io->io_bio = bio;

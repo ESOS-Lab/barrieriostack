@@ -107,6 +107,8 @@ struct blk_io_trace {
 	__u32 cpu;		/* on what cpu did it happen */
 	__u16 error;		/* completion error */
 	__u16 pdu_len;		/* length of data after this trace */
+	__u32 epoch;		/* Epoch ID - kms91 added 19.02.18 */
+	__s32 stream;		/* Stream ID - kms91 added 19.04.08 */
 };
 
 /*

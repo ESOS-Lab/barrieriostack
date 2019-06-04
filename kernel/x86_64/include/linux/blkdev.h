@@ -463,6 +463,14 @@ struct request_queue {
 	/* UFS: for epoch allocation */
 	mempool_t *epoch_pool;
 	mempool_t *epoch_link_pool;
+
+	/* jaaa added - kms91 */
+	unsigned int epoch_id;		/* epoch id that each epoch wil have */
+	struct mutex epoch_id_lock;	/* Because both of checking overflow
+					 * of epoch id and setting of epoch id
+					 * should be atomic, we use mutex
+					 * instead of atomic_t */
+	bool epoch_complete;
 };
 
 #define QUEUE_FLAG_QUEUED	1	/* uses generic tag queueing */
@@ -983,6 +991,9 @@ bool __must_check blk_get_queue(struct request_queue *);
 struct request_queue *blk_alloc_queue(gfp_t);
 struct request_queue *blk_alloc_queue_node(gfp_t, int);
 extern void blk_put_queue(struct request_queue *);
+
+/* kms91 added 19.03.07 */
+struct request_queue *blk_set_epoch_pool(struct request_queue *);
 
 /*
  * block layer runtime pm functions

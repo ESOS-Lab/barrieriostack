@@ -583,6 +583,12 @@ struct transaction_s
 	atomic_t		t_updates;
 
 	/*
+	 * Number of outstanding updates until sleep of commit thread.
+	 * - Joontaek Oh.
+	 */
+	atomic_t		t_updated;
+
+	/*
 	 * Number of buffers reserved for use by all handles in this transaction
 	 * handle but not yet modified. [t_handle_lock]
 	 */
@@ -1230,6 +1236,11 @@ extern void	   jbd2_journal_write_revoke_records(journal_t *journal,
 						     transaction_t *transaction,
 						     struct list_head *log_bufs,
 						     int write_op);
+/* kms91 added 19.04.18 */
+extern void	jbd2_journal_write_revoke_records64(journal_t *journal,
+						transaction_t *transaction,
+						struct list_head *log_bufs,
+						long long write_op);
 
 /* Recovery revoke support */
 extern int	jbd2_journal_set_revoke(journal_t *, unsigned long long, tid_t);

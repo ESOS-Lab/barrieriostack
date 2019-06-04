@@ -263,6 +263,17 @@ record_it:
 		t->error = error;
 		t->pdu_len = pdu_len;
 
+		/* kms91 added */
+		if (pbio->bi_rw & REQ_ORDERED) {
+			t->stream = pbio->bi_stream_id;
+			t->epoch = pbio->bi_epoch->eid;
+		}
+		else {
+			t->stream = 0;
+			t->epoch = 0;
+		}
+		t->epoch = g_epoch_id;
+
 		if (pdu_len)
 			memcpy((void *) t + sizeof(*t), pdu_data, pdu_len);
 
@@ -766,8 +777,10 @@ static void blk_add_trace_bio(struct request_queue *q, struct bio *bio,
 	if (!error && !bio_flagged(bio, BIO_UPTODATE))
 		error = EIO;
 
-	__blk_add_trace(bt, bio->bi_sector, bio->bi_size, bio->bi_rw, what,
-			error, 0, NULL);
+	//__blk_add_trace(bt, bio->bi_sector, bio->bi_size, bio->bi_rw, what,
+	//		error, 0, NULL);
+	__blk_add_epoch_trace(bt, bio->bi_sector, bio->bi_size, bio->bi_rw, what,
+			error, 0, NULL, bio);
 }
 
 static void blk_add_trace_bio_bounce(void *ignore,

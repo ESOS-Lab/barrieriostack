@@ -3116,6 +3116,14 @@ int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_fl
 	bio->bi_end_io = end_bio_bh_io_sync;
 	bio->bi_private = bh;
 
+	/*
+	 * kms91 added 19.04.05
+	 * Initialize bi_stream_id. bi_stream_id store current process id.
+	 * Type of bi_stream_id is pid_t,
+	 * so it is not necessary to type casting.
+	 */
+	bio->bi_stream_id = current->pid;
+
 	/* Take care of bh's that straddle the end of the device */
 	guard_bh_eod(rw, bio, bh);
 
@@ -3216,6 +3224,20 @@ void write_dirty_buffer(struct buffer_head *bh, int rw)
 	submit_bh(rw, bh);
 }
 EXPORT_SYMBOL(write_dirty_buffer);
+
+/* kms91 added 19.04.18 */
+void write_dirty_buffer64(struct buffer_head *bh, long long /*int*/ rw)
+{
+	lock_buffer(bh);
+	if (!test_clear_buffer_dirty(bh)) {
+		unlock_buffer(bh);
+		return;
+	}
+	bh->b_end_io = end_buffer_write_sync;
+	get_bh(bh);
+	submit_bh64(rw, bh);
+}
+EXPORT_SYMBOL(write_dirty_buffer64);
 
 /*
  * For a data-integrity writeout, we need to wait upon any in-progress I/O

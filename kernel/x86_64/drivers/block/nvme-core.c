@@ -695,9 +695,45 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 	cmnd->rw.control = cpu_to_le16(control);
 	cmnd->rw.dsmgmt = cpu_to_le32(dsmgmt);
 
+	/*
+	 * kms91 added on 19.04.05 
+	 * Store bi_stream_id in bio structure to cmd_stream_id 
+	 * in nvme_rw_command structure.
+	 * Since pid_t type of bi_stream_id and __s32(unsigned int) of
+	 * cmd_stream_id, it is not necessary to type casting.
+	 */
+
+	/*
+	 * kms91 added on 19.03.18
+	 * put epoch id to nvme rw command.
+	 * epoch id be in the bi_epoch in bio structure.
+	 * Type of eid in bi_epoch is unsigned int and 
+	 * type of cmd_epoch_id in nvme cmd is __u32(unsigned int). 
+	 * So it is inserted directly without typecasting.
+	 */
+	if(bio->bi_epoch) {
+		cmnd->rw.cmd_stream_id = bio->bi_stream_id;
+		cmnd->rw.cmd_epoch_id = bio->bi_epoch->eid;
+	}
+	else {
+		cmnd->rw.cmd_stream_id = 0;
+		cmnd->rw.cmd_epoch_id = 0;
+	}
+
 	if (++nvmeq->sq_tail == nvmeq->q_depth)
 		nvmeq->sq_tail = 0;
 	writel(nvmeq->sq_tail, nvmeq->q_db);
+
+	/* kms91 added 19.03.26 */
+	if (bio->bi_epoch && bio->bi_rw & REQ_ORDERED) {
+		struct epoch *epoch;
+		epoch = bio->bi_epoch;
+		epoch->complete++;
+		put_epoch(epoch);
+		if (atomic_read(&epoch->e_count) == 0) {
+			mempool_free(epoch, epoch->q->epoch_pool);
+		}
+	}
 
 	return 0;
 
@@ -1570,6 +1606,15 @@ static struct nvme_ns *nvme_alloc_ns(struct nvme_dev *dev, int nsid,
 	if (!ns)
 		return NULL;
 	ns->queue = blk_alloc_queue(GFP_KERNEL);
+
+	/* 
+	 * kms91 added 19.03.07
+	 * Initialize a memory pool of the allocated request queue for epoch.
+	 * Since NVMe device driver does not initialize a memory pool,
+	 * it initializes manually through this function.
+	 */
+	ns->queue = blk_set_epoch_pool(ns->queue);
+
 	if (!ns->queue)
 		goto out_free_ns;
 	ns->queue->queue_flags = QUEUE_FLAG_DEFAULT;

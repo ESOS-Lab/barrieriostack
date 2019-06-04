@@ -44,6 +44,11 @@ struct bio {
 						 * top bits priority
 						 */
 
+	pid_t			bi_stream_id;	/* kms91 added 19.04.04 - stream id (PID)
+						 * This variable store process id (PID) as stream id
+						 * So, type of this var is pid_t (signed int)
+						 */
+
 	unsigned short		bi_vcnt;	/* how many bio_vec's */
 	unsigned short		bi_idx;		/* current index into bvl_vec */
 

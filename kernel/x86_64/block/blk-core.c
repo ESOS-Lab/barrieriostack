@@ -719,6 +719,58 @@ blk_init_queue_node(request_fn_proc *rfn, spinlock_t *lock, int node_id)
 }
 EXPORT_SYMBOL(blk_init_queue_node);
 
+/* 
+ * kms91 added 19.03.07 
+ * In: request queue pointer
+ * Out: request queue pointer
+ * This function creates a memory pool in request queue for epoch
+ * It called by nvme_alloc_ns() because NVMe device driver does 
+ * not initialize a memory pool for epoch
+ */
+struct request_queue *
+blk_set_epoch_pool(struct request_queue *q)
+{
+	if (!q)
+		return NULL;
+	/* 
+	 * UFS
+	 * allocate memory pool in request queue for epoch
+	 */
+	if (!q->epoch_pool)
+		/* 
+		 * kms91 added on 19.03.18
+		 * set memory pool for creating epoch.
+		 * size is 40(epoch size) * 128(Maximum of requests in request queue).
+		 */
+		q->epoch_pool = mempool_create_node(BLKDEV_MAX_RQ, mempool_alloc_slab,
+				mempool_free_slab, epoch_cachep, GFP_NOFS, q->node);
+	if (!q->epoch_pool) {
+		printk(KERN_ERR "epoch_pool create error\n");
+		return NULL;
+	}
+
+	if (!q->epoch_link_pool)
+		q->epoch_link_pool = mempool_create_node(BLKDEV_MAX_RQ, mempool_alloc_slab,
+				mempool_free_slab, epoch_link_cachep, GFP_NOFS, q->node);
+	if (!q->epoch_link_pool) {
+		printk(KERN_ERR "epoch_link_pool create error\n");
+		mempool_destroy(q->epoch_pool);
+		return NULL;
+	}
+
+	/* 
+	 * jata added - 19.02.18 kms91 
+	 * Initialize the epoch id and lock for epoch id
+	 * Since NVMe create the one request, all request for NVMe share same epoch id 
+	 */
+	mutex_init(&q->epoch_id_lock);
+	q->epoch_id = 0;
+	q->epoch_complete = false;
+
+	return q;
+}
+EXPORT_SYMBOL(blk_set_epoch_pool);
+
 struct request_queue *
 blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 			 spinlock_t *lock)
@@ -745,6 +797,12 @@ blk_init_allocated_queue(struct request_queue *q, request_fn_proc *rfn,
 		mempool_destroy(q->epoch_pool);
 		return NULL;
 	}
+
+	/* 
+	 * jata added - 19.02.18 kms91
+	 */
+	mutex_init(&q->epoch_id_lock);
+	q->epoch_id = 0;
 
 	q->request_fn		= rfn;
 	q->prep_rq_fn		= NULL;
@@ -1944,6 +2002,36 @@ void submit_bio(long long/*int*/ rw, struct bio *bio)
 				bdevname(bio->bi_bdev, b),
 				count);
 		}
+
+		/* 
+		 * jata added - kms91
+		 * Create new epoch
+		 * If request have the REQ_BARRIER, epoch is finished.
+		 * And next request is included in a new epoch
+		 * Since NVMe has no path of creation epoch, this routine move to here.
+		 * Original is in blk_queue_bio() for scsi
+		 */
+		if (bio->bi_rw & REQ_ORDERED) {
+			struct request_queue *q = bdev_get_queue(bio->bi_bdev);
+			if (!current->__epoch)
+				blk_start_epoch(q);
+
+			get_epoch(current->__epoch);
+			bio->bi_epoch = current->__epoch;
+			bio->bi_epoch->pending++;
+			mutex_lock(&q->epoch_id_lock);
+			g_epoch_id = bio->bi_epoch->eid;
+			mutex_unlock(&q->epoch_id_lock);
+
+			if (bio->bi_rw & REQ_BARRIER) {
+				blk_finish_epoch();
+
+				mutex_lock(&q->epoch_id_lock);
+				q->epoch_complete = true;
+				mutex_unlock(&q->epoch_id_lock);
+			}
+		}
+		/* end */
 	}
 
 	generic_make_request(bio);
@@ -1979,6 +2067,28 @@ void submit_bio64(long long rw, struct bio *bio)
 				(unsigned long long)bio->bi_sector,
 				bdevname(bio->bi_bdev, b),
 				count);
+		}
+
+		/* kms91 added */
+		if (bio->bi_rw & REQ_ORDERED) {
+			struct request_queue *q = bdev_get_queue(bio->bi_bdev);
+			if (!current->__epoch)
+				blk_start_epoch(q);
+
+			get_epoch(current->__epoch);
+			bio->bi_epoch = current->__epoch;
+			bio->bi_epoch->pending++;
+			mutex_lock(&q->epoch_id_lock);
+			g_epoch_id = bio->bi_epoch->eid;
+			mutex_unlock(&q->epoch_id_lock);
+
+			if (bio->bi_rw & REQ_BARRIER) {
+				blk_finish_epoch();
+
+				mutex_lock(&q->epoch_id_lock);
+				q->epoch_complete = true;
+				mutex_unlock(&q->epoch_id_lock);
+			}
 		}
 	}
 	
@@ -3244,6 +3354,24 @@ void blk_start_epoch(struct request_queue *q)
 	epoch->complete = 0;
 	epoch->error = 0;
 	epoch->error_flags = 0;
+
+	/* 
+	 * jata added - kms91 19.02.18 
+	 * Update epoch id
+	 * If epoch id is bigger than UINT_MAX, it initialize to zero.
+	 * And epoch id is insert into global var for blktrace.
+	 */
+	mutex_lock(&q->epoch_id_lock);
+	if(q->epoch_complete) {
+		if(q->epoch_id == UINT_MAX)
+			q->epoch_id = 0;
+		epoch->eid = ++(q->epoch_id);
+		q->epoch_complete = false;
+	}
+	else
+		epoch->eid = q->epoch_id;
+
+	mutex_unlock(&q->epoch_id_lock);
 
 	get_epoch(epoch);
 

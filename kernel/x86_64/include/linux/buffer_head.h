@@ -202,6 +202,8 @@ void __lock_buffer_dispatch(struct buffer_head *bh);
 int dispatch_bio_bh(struct bio *bio);
 int _submit_bh64(long long rw, struct buffer_head *bh, unsigned long long bio_flags);
 int submit_bh64(long long rw, struct buffer_head *bh);
+/* kms91 added 19.04.18 */
+void write_dirty_buffer64(struct buffer_head *bh, long long rw);
 
 void write_boundary_block(struct block_device *bdev,
 			sector_t bblock, unsigned blocksize);
