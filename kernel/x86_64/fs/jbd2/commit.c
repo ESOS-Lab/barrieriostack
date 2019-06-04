@@ -1362,18 +1362,6 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	commit_transaction = journal->j_running_transaction;
 	J_ASSERT(commit_transaction->t_state == T_RUNNING);
 
-	/* UFS : Delayed Commit */
-#ifdef DELAYED_COMMIT
-	spin_lock(&journal->j_list_lock);
-	while(!list_empty(&commit_transaction->t_jh_wait_list)){
-		wake_up(&journal->j_wait_cpsetup);
-		spin_unlock(&journal->j_list_lock);
-		wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
-		spin_lock(&journal->j_list_lock);
-	}
-	spin_unlock(&journal->j_list_lock);
-#endif
-
 	trace_jbd2_start_commit(journal, commit_transaction);
 	jbd_debug(1, "JBD2: starting commit of transaction %d\n",
 			commit_transaction->t_tid);
@@ -1411,6 +1399,20 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 
 	J_ASSERT (atomic_read(&commit_transaction->t_outstanding_credits) <=
 			journal->j_max_transaction_buffers);
+
+	/* UFS : Delayed Commit */
+#ifdef DELAYED_COMMIT
+	spin_lock(&journal->j_list_lock);
+	while(!list_empty(&commit_transaction->t_jh_wait_list)){
+		wake_up(&journal->j_wait_cpsetup);
+		spin_unlock(&journal->j_list_lock);
+		write_unlock(&journal->j_state_lock);
+		wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
+		write_lock(&journal->j_state_lock);
+		spin_lock(&journal->j_list_lock);
+	}
+	spin_unlock(&journal->j_list_lock);
+#endif
 
 	/*
 	 * First thing we are allowed to do is to discard any remaining

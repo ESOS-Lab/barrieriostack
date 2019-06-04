@@ -1215,9 +1215,6 @@ int jbd2_journal_dirty_metadata(handle_t *handle, struct buffer_head *bh)
 	struct journal_head *jh;
 	int ret = 0;
 
-#ifdef CPSETUPWAIT
-repeat:
-#endif
 	if (is_handle_aborted(handle))
 		goto out;
 	jh = jbd2_journal_grab_journal_head(bh);
@@ -1229,24 +1226,6 @@ repeat:
 	JBUFFER_TRACE(jh, "entry");
 
 	jbd_lock_bh_state(bh);
-
-	/* UFS */
-#ifdef CPSETUPWAIT
-	if (jh->b_transaction && jh->b_transaction != transaction) {
-		if (jh->b_next_transaction != transaction)
-			printk(KERN_ERR "UFS: %s: ERROR no ref to running tx \n", __func__);
-		read_lock(&journal->j_state_lock);
-		if (tid_gt(jh->b_transaction->t_tid, journal->j_cpsetup_sequence)) {
-			wake_up(&journal->j_wait_cpsetup);
-			read_unlock(&journal->j_state_lock);
-			jbd2_journal_put_journal_head(jh);
-			jbd_unlock_bh_state(bh);
-			wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction);
-			goto repeat;
-		}
-		read_unlock(&journal->j_state_lock);
-	}
-#endif
 
 	if (jh->b_modified == 0) {
 		/*
