@@ -50,8 +50,6 @@
 #include <asm/uaccess.h>
 #include <asm/page.h>
 
-#define DELAYED_COMMIT
-
 #ifdef CONFIG_JBD2_DEBUG
 ushort jbd2_journal_enable_debug __read_mostly;
 EXPORT_SYMBOL(jbd2_journal_enable_debug);
@@ -2649,9 +2647,7 @@ repeat:
 	if (!buffer_jbd(bh)) {
 		new_jh = journal_alloc_journal_head();
 		memset(new_jh, 0, sizeof(*new_jh));
-#ifdef DELAYED_COMMIT
 		INIT_LIST_HEAD(&new_jh->b_jh_wait_list);
-#endif
 	}
 
 	jbd_lock_bh_journal_head(bh);

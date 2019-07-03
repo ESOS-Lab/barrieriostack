@@ -34,7 +34,7 @@
 #endif
 
 #define journal_oom_retry 1
-#define DELAYED_COMMIT
+
 /*
  * Define JBD2_PARANIOD_IOFAIL to cause a kernel BUG() if ext4 finds
  * certain classes of error which can occur due to failed IOs.  Under
@@ -626,11 +626,7 @@ struct transaction_s
 	struct list_head	t_private_list;
 
 	/* UFS */
-#ifndef DELAYED_COMMIT
-	struct list_head	jh_wait;
-#else
 	struct list_head	t_jh_wait_list;
-#endif
 	struct list_head	io_bufs;
 	struct list_head	log_bufs;
 	struct buffer_head	*cbh;

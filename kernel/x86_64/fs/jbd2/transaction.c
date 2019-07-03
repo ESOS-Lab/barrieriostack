@@ -32,8 +32,6 @@
 
 #include <trace/events/jbd2.h>
 
-#define DELAYED_COMMIT
-
 static void __jbd2_journal_temp_unlink_buffer(struct journal_head *jh);
 static void __jbd2_journal_unfile_buffer(struct journal_head *jh);
 
@@ -109,9 +107,8 @@ jbd2_get_transaction(journal_t *journal, transaction_t *transaction)
 	/* UFS */
 	INIT_LIST_HEAD(&transaction->io_bufs);
 	INIT_LIST_HEAD(&transaction->log_bufs);
-#ifdef DELAYED_COMMIT
 	INIT_LIST_HEAD(&transaction->t_jh_wait_list);
-#endif
+
 	transaction->cbh = NULL;
 	return transaction;
 }
@@ -866,11 +863,9 @@ done:
 		 */
 		jh->b_frozen_triggers = jh->b_triggers;
 	}
-	jbd_unlock_bh_state(bh);
 
 	/* UFS */
 	if (jh->b_transaction && jh->b_transaction != transaction) {
-#ifdef DELAYED_COMMIT
 		/* insert jh into the buffer list of transaction */
 		/* list_lock*/
 		spin_lock(&journal->j_list_lock);
@@ -887,14 +882,8 @@ done:
 		}  
 		else
 			spin_unlock(&journal->j_list_lock);
-#else
-		wake_up(&journal->j_wait_cpsetup);
-		unlock_buffer(bh);
-		jbd_unlock_bh_state(bh);
-		wait_event(journal->j_wait_done_cpsetup, jh->b_transaction == transaction || !jh->b_transaction);
-		goto repeat;
-#endif
 	}
+	jbd_unlock_bh_state(bh);
 
 	/*
 	 * If we are about to journal a buffer, then any revoke pending on it is
@@ -1434,6 +1423,7 @@ repeat:
 		if (jh->b_next_transaction) {
 			J_ASSERT(jh->b_next_transaction == transaction);
 			jh->b_next_transaction = NULL;
+			list_del_init(&jh->b_jh_wait_list);
 
 			/*
 			 * only drop a reference if this transaction modified
@@ -2295,11 +2285,7 @@ void __jbd2_journal_refile_buffer(struct journal_head *jh)
 	if (jh->b_transaction)
 		assert_spin_locked(&jh->b_transaction->t_journal->j_list_lock);
 
-#ifdef DELAYED_COMMIT
-	//spin_lock(&journal->j_list_lock);
 	list_del_init(&jh->b_jh_wait_list);
-	//spin_unlock(&journal->j_list_lock);
-#endif
 
 	/* If the buffer is now unused, just drop it. */
 	if (jh->b_next_transaction == NULL) {

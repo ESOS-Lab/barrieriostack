@@ -30,7 +30,6 @@
 #include <trace/events/jbd2.h>
 
 #define UFSBARRIER
-#define DELAYED_COMMIT
 
 /*
  * IO end handler for temporary buffer_heads handling writes to the journal.
@@ -1400,19 +1399,19 @@ void jbd2_journal_barrier_commit_transaction(journal_t *journal)
 	J_ASSERT (atomic_read(&commit_transaction->t_outstanding_credits) <=
 			journal->j_max_transaction_buffers);
 
+	write_unlock(&journal->j_state_lock);
+
 	/* UFS : Delayed Commit */
-#ifdef DELAYED_COMMIT
 	spin_lock(&journal->j_list_lock);
 	while(!list_empty(&commit_transaction->t_jh_wait_list)){
 		wake_up(&journal->j_wait_cpsetup);
 		spin_unlock(&journal->j_list_lock);
-		write_unlock(&journal->j_state_lock);
 		wait_event(journal->j_wait_done_cpsetup, list_empty(&commit_transaction->t_jh_wait_list));
-		write_lock(&journal->j_state_lock);
 		spin_lock(&journal->j_list_lock);
 	}
 	spin_unlock(&journal->j_list_lock);
-#endif
+
+	write_lock(&journal->j_state_lock);
 
 	/*
 	 * First thing we are allowed to do is to discard any remaining
@@ -2229,8 +2228,6 @@ restart_loop:
 		__jbd2_journal_drop_transaction(journal, commit_transaction);
 		jbd2_journal_free_transaction(commit_transaction);
 	}
-
-
 
 	spin_unlock(&journal->j_list_lock);
 	write_unlock(&journal->j_state_lock);
