@@ -464,7 +464,7 @@ struct request_queue {
 	mempool_t *epoch_pool;
 	mempool_t *epoch_link_pool;
 
-	/* jaaa added - kms91 */
+	/* jata added - kms91 */
 	unsigned int epoch_id;		/* epoch id that each epoch wil have */
 	struct mutex epoch_id_lock;	/* Because both of checking overflow
 					 * of epoch id and setting of epoch id

@@ -65,6 +65,7 @@ struct blk_plug;
 
 /* UFS: epoch structure */
 struct epoch {
+	unsigned int	eid;				/* Epoch ID of current thread - kms91 */
 	struct task_struct *task;
 	struct request_queue *q;
 	

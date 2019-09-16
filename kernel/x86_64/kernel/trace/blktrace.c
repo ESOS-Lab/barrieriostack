@@ -263,6 +263,96 @@ record_it:
 		t->error = error;
 		t->pdu_len = pdu_len;
 
+		if (pdu_len)
+			memcpy((void *) t + sizeof(*t), pdu_data, pdu_len);
+
+		if (blk_tracer) {
+			trace_buffer_unlock_commit(buffer, event, 0, pc);
+			return;
+		}
+	}
+
+	local_irq_restore(flags);
+}
+
+/* kms91 added 19.04.08 */
+static void __blk_add_epoch_trace(struct blk_trace *bt, sector_t sector, int bytes,
+		     int rw, u32 what, int error, int pdu_len, void *pdu_data, struct bio *pbio)
+{
+	struct task_struct *tsk = current;
+	struct ring_buffer_event *event = NULL;
+	struct ring_buffer *buffer = NULL;
+	struct blk_io_trace *t;
+	unsigned long flags = 0;
+	unsigned long *sequence;
+	pid_t pid;
+	int cpu, pc = 0;
+	bool blk_tracer = blk_tracer_enabled;
+
+	if (unlikely(bt->trace_state != Blktrace_running && !blk_tracer))
+		return;
+
+	what |= ddir_act[rw & WRITE];
+	what |= MASK_TC_BIT(rw, SYNC);
+	what |= MASK_TC_BIT(rw, RAHEAD);
+	what |= MASK_TC_BIT(rw, META);
+	what |= MASK_TC_BIT(rw, DISCARD);
+	what |= MASK_TC_BIT(rw, FLUSH);
+	what |= MASK_TC_BIT(rw, FUA);
+
+	pid = tsk->pid;
+	if (act_log_check(bt, what, sector, pid))
+		return;
+	cpu = raw_smp_processor_id();
+
+	if (blk_tracer) {
+		tracing_record_cmdline(current);
+
+		buffer = blk_tr->trace_buffer.buffer;
+		pc = preempt_count();
+		event = trace_buffer_lock_reserve(buffer, TRACE_BLK,
+						  sizeof(*t) + pdu_len,
+						  0, pc);
+		if (!event)
+			return;
+		t = ring_buffer_event_data(event);
+		goto record_it;
+	}
+
+	/*
+	 * A word about the locking here - we disable interrupts to reserve
+	 * some space in the relay per-cpu buffer, to prevent an irq
+	 * from coming in and stepping on our toes.
+	 */
+	local_irq_save(flags);
+
+	if (unlikely(tsk->btrace_seq != blktrace_seq))
+		trace_note_tsk(bt, tsk);
+
+	t = relay_reserve(bt->rchan, sizeof(*t) + pdu_len);
+	if (t) {
+		sequence = per_cpu_ptr(bt->sequence, cpu);
+
+		t->magic = BLK_IO_TRACE_MAGIC | BLK_IO_TRACE_VERSION;
+		t->sequence = ++(*sequence);
+		t->time = ktime_to_ns(ktime_get());
+record_it:
+		/*
+		 * These two are not needed in ftrace as they are in the
+		 * generic trace_entry, filled by tracing_generic_entry_update,
+		 * but for the trace_event->bin() synthesizer benefit we do it
+		 * here too.
+		 */
+		t->cpu = cpu;
+		t->pid = pid;
+
+		t->sector = sector;
+		t->bytes = bytes;
+		t->action = what;
+		t->device = bt->dev;
+		t->error = error;
+		t->pdu_len = pdu_len;
+
 		/* kms91 added */
 		if (pbio->bi_rw & REQ_ORDERED) {
 			t->stream = pbio->bi_stream_id;
@@ -272,7 +362,6 @@ record_it:
 			t->stream = 0;
 			t->epoch = 0;
 		}
-		t->epoch = g_epoch_id;
 
 		if (pdu_len)
 			memcpy((void *) t + sizeof(*t), pdu_data, pdu_len);
