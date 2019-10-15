@@ -669,10 +669,14 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 	/*
 	 * kms91 added on 19.10.15
 	 * Add Barrier flag to control bit.
-	 * 25th bit in write command is reserved(empty) on NVMe interface 1.3
+	 * 25th and 24th bit in write command is reserved(empty) on NVMe interface 1.3
 	 * So, if Barrier flag is in write request, turn on the 25th bit to 1
+	 * and if Ordered flag is in write request, turn on the 24th bit to 1
 	 * in NVMe write command.
 	 */
+	if (bio->bi_rw & REQ_ORDERED)
+		control |= NVME_RW_ORDERED;
+
 	if (bio->bi_rw & REQ_BARRIER)
 		control |= NVME_RW_BARRIER;
 
