@@ -255,6 +255,7 @@ enum {
 	NVME_RW_DSM_LATENCY_LOW		= 3 << 4,
 	NVME_RW_DSM_SEQ_REQ		= 1 << 6,
 	NVME_RW_DSM_COMPRESSED		= 1 << 7,
+	NVME_RW_BARRIER		= 1 << 9,					/* kms91 added on 19.10.15 - Barrier flag on NVMe R/W command */
 };
 
 struct nvme_dsm_cmd {
