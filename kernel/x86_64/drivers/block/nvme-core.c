@@ -739,14 +739,12 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 	writel(nvmeq->sq_tail, nvmeq->q_db);
 
 	/* kms91 added 19.03.26 */
-	if (bio->bi_epoch && bio->bi_rw & REQ_ORDERED) {
+	if (bio->bi_epoch && bio->bi_rw & REQ_BARRIER) {
 		struct epoch *epoch;
 		epoch = bio->bi_epoch;
-		epoch->complete++;
-		put_epoch(epoch);
-		if (atomic_read(&epoch->e_count) == 0) {
-			mempool_free(epoch, epoch->q->epoch_pool);
-		}
+		
+		current->__epoch = 0;	
+		mempool_free(epoch, epoch->q->epoch_pool);
 	}
 
 	return 0;
